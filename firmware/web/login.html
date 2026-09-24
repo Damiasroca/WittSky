@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<title>login</title>
+		<link rel="stylesheet" href="./axcss.css">
+		<style type="text/css">
+			#content {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 24px;
+			}
+
+			.login {
+				display: flex;
+				flex-direction: column;
+				gap: 14px;
+				width: 100%;
+				max-width: 400px;
+				padding: 40px 36px 28px;
+				background: var(--surface);
+				border: 1px solid var(--line);
+				border-radius: var(--radius);
+				box-shadow: 0 16px 40px rgba(0, 0, 0, .28);
+			}
+
+			.login-kicker {
+				font-size: 12px;
+				font-weight: 650;
+				letter-spacing: .14em;
+				text-transform: uppercase;
+				color: var(--accent);
+			}
+
+			.login-txt {
+				font-size: 34px;
+				font-weight: 650;
+				letter-spacing: -.03em;
+				line-height: 1.1;
+			}
+
+			.login-sub {
+				margin-top: -6px;
+				color: var(--muted);
+				font-size: 15px;
+			}
+
+			.login .input {
+				max-width: none;
+			}
+
+			.pwd-box {
+				position: relative;
+			}
+
+			.eye {
+				position: absolute;
+				right: 8px;
+				top: 50%;
+				padding: 4px;
+				color: var(--muted);
+				transform: translateY(-50%);
+				cursor: pointer;
+			}
+
+			.eye:hover {
+				color: var(--text);
+			}
+
+			#pwd {
+				padding-right: 36px;
+			}
+
+			.login .common-btn {
+				width: 100%;
+				margin-top: 6px;
+			}
+
+			#version {
+				font-size: 12px;
+				color: #5d6773;
+				text-align: center;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="wrap">
+			<div class="content" id="content">
+				<div class="login">
+					<div class="login-kicker">HP10</div>
+					<h1 class="login-txt">Login</h1>
+					<p class="login-sub">Sign in to the camera.</p>
+					<div>
+						<input type="text" class="input" id="" value="admin" disabled />
+					</div>
+					<div class="pwd">
+						<div class="pwd-box">
+							<input type="password" class="input" id="pwd" maxlength="63" onkeydown="keyDown(event)" />
+							<div id="show-pwd" class="iconfont icon-yincang eye" onclick="wifiPwdChange(this)"></div>
+						</div>
+					</div>
+					<button type="button" class="common-btn" onclick="login()">Login</button>
+					<p id="version"></p>
+				</div>
+			</div>
+		</div>
+	</body>
+	<script src="./axjs.js"></script>
+	<script>
+		function wifiPwdChange(_this) { //是否显示密码
+			let wifiPwd = document.querySelector('#pwd')
+			if (_this.classList.contains('icon-yincang')) {//不显示类名, 展示密码
+				_this.classList.remove('icon-yincang')
+				_this.classList.add('icon-xianshimima')
+				wifiPwd.type = 'text'
+			} else {
+				_this.classList.add('icon-yincang')
+				_this.classList.remove('icon-xianshimima')
+				wifiPwd.type = 'password'
+			}
+		}
+		function keyDown(e) {
+			if (e.keyCode === 13) {
+				login()
+			}
+		}
+		function login() {
+			let pwd = document.querySelector('#pwd').value;
+			ajax({
+				method: 'post',
+				url: '/set_login_info',
+				data: {
+					pwd: baseCode(pwd)
+				},
+				success: function (res) {
+					if (res.status == '1') {
+						location.href = './localNetwork.html';
+					} else {
+						toast({
+							txt: res.msg,
+							type: 'error',
+							time: 10000
+						})
+					}
+				},
+				error: function (err) {
+					toast({
+						txt: err,
+						type: 'error'
+					})
+				}
+			})
+		}
+		getVersion()
+		function getVersion() {
+			ajax({
+				url: '/get_version',
+				success: function (res) {
+					localStorage.setItem('version', res.version)
+					document.querySelector('#version').innerHTML = res.version;
+				},
+				error: function (err) {
+					return err
+				}
+			})
+		}
+	</script>
+
+</html>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Sky</title>
+	<link rel="stylesheet" href="./axcss.css">
+	<style>
+		.sky-still { position: relative; display: inline-block; max-width: 100%; }
+		.sky-still img {
+			display: block; max-width: 100%; height: auto;
+			border-radius: 10px; border: 1px solid var(--line); background: var(--bg);
+		}
+		#mask {
+			position: absolute;
+			border: 2px solid var(--accent);
+			background: rgba(90, 180, 214, 0.28);
+			pointer-events: none;
+			box-sizing: border-box;
+		}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<div id="sidebar"></div>
+		<div class="content" id="content">
+			<header class="page-head">
+				<h1 class="page-til">Sky</h1>
+				<p class="page-sub">Latest sky measurement, the mask on the frame, and how it is computed.</p>
+			</header>
+			<section class="content-box" data-tone="ok">
+				<h2 class="input-box-til">Latest</h2>
+				<div id="sky_note" class="notice"></div>
+				<div id="stats"></div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="loadStats()">Refresh</button>
+					<button type="button" class="common-btn" id="auto_btn" onclick="toggleAuto()">Auto-refresh off</button>
+					<button type="button" class="common-btn" onclick="measureNow()">Measure now</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="cam">
+				<h2 class="input-box-til">Mask</h2>
+				<div class="input-box">
+					<div class="input-des">Still</div>
+					<div class="input-item flex-no">
+						<div class="sky-still">
+							<img id="still" alt="capture">
+							<div id="mask"></div>
+						</div>
+						<div class="pwd-des">The rectangle is the sky mask, in percent of the frame. Reload image grabs a new still. It is not the frame that was just measured.</div>
+					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="reloadStill()">Reload image</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="net">
+				<h2 class="input-box-til">Settings</h2>
+				<div class="input-box">
+					<div class="input-des">Sky stats</div>
+					<div class="input-item">
+						<label><input type="checkbox" id="sky_en" /> Enabled</label>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Mask X %</div>
+					<div class="input-item">
+						<input type="number" id="sky_x" min="0" max="100" step="1" />
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Mask Y %</div>
+					<div class="input-item">
+						<input type="number" id="sky_y" min="0" max="100" step="1" />
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Mask width %</div>
+					<div class="input-item">
+						<input type="number" id="sky_w" min="1" max="100" step="1" />
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Mask height %</div>
+					<div class="input-item">
+						<input type="number" id="sky_h" min="1" max="100" step="1" />
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">R/B threshold</div>
+					<div class="input-item flex-no">
+						<input type="number" id="sky_rb" min="200" max="2000" step="1" />
+						<div class="pwd-des">Times 1000. Cloud if R/B is at least this value. Default 600.</div>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Saturation</div>
+					<div class="input-item flex-no">
+						<input type="number" id="sky_sat" min="200" max="255" step="1" />
+						<div class="pwd-des">A pixel at or above this on R, G, or B is saturated and left out of the cloud ratio.</div>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">White balance</div>
+					<div class="input-item flex-no">
+						<select id="sky_awb">
+							<option value="0">Auto</option>
+							<option value="1">Sunny</option>
+							<option value="2">Cloudy</option>
+							<option value="3">Office</option>
+							<option value="4">Home</option>
+						</select>
+						<div class="pwd-des">A fixed preset also changes the colours of uploaded images. Auto does not.</div>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Daylight margin</div>
+					<div class="input-item flex-no">
+						<input type="number" id="sky_daym" min="0" max="180" step="1" />
+						<div class="pwd-des">Minutes after sunrise and before sunset. Outside that window, cloud cover is not reported.</div>
+					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="saveCfg()">Apply</button>
+				</div>
+			</section>
+		</div>
+	</div>
+</body>
+<script src="./axjs.js"></script>
+<script>
+	let autoTimer = null
+
+	function num(id) {
+		return document.querySelector(id).value
+	}
+
+	function show(v) {
+		if (v === null || v === undefined || v === '')
+			return '\u2014'
+		return String(v)
+	}
+
+	function drawMask() {
+		let m = document.querySelector('#mask')
+		m.style.left = (Number(num('#sky_x')) || 0) + '%'
+		m.style.top = (Number(num('#sky_y')) || 0) + '%'
+		m.style.width = (Number(num('#sky_w')) || 0) + '%'
+		m.style.height = (Number(num('#sky_h')) || 0) + '%'
+	}
+
+	function reloadStill() {
+		document.querySelector('#still').src = '/capture?t=' + Date.now()
+	}
+
+	function row(label, value, tone) {
+		let box = document.createElement('div')
+		box.className = 'input-box'
+		let d = document.createElement('div')
+		d.className = 'input-des'
+		d.textContent = label
+		let it = document.createElement('div')
+		it.className = 'input-item'
+		if (tone) {
+			let mark = document.createElement('span')
+			mark.className = 'ind ' + tone
+			mark.textContent = value
+			it.appendChild(mark)
+		} else {
+			it.textContent = value
+		}
+		box.appendChild(d)
+		box.appendChild(it)
+		return box
+	}
+
+	function showStats(res) {
+		let note = document.querySelector('#sky_note')
+		let box = document.querySelector('#stats')
+		box.innerHTML = ''
+		if (!res || res.valid === 0) {
+			note.textContent = 'No measurement yet. Measure now, or enable sky stats and wait for an upload.'
+			return
+		}
+		if (res.status === 0 && res.msg) {
+			note.textContent = res.msg
+			return
+		}
+		let lines = []
+		if (!document.querySelector('#sky_en').checked)
+			lines.push('Sky stats are off, so uploads will not measure.')
+		if (res.day === false)
+			lines.push('Night. Cloud cover is not reported.')
+		else if (res.day === null)
+			lines.push('Daylight is unknown: no location, the clock is not synced, or the sun calculation failed.')
+		if (res.day !== false && (res.cloud_pct === null || res.cloud_pct === undefined))
+			lines.push('Not enough usable sky in the mask, so cloud cover is not reported.')
+		note.textContent = lines.join(' ')
+		let gains = '\u2014'
+		if (res.awb_gains && res.awb_gains.length)
+			gains = res.awb_gains.join(', ')
+		let day = 'Unknown'
+		let dayTone = 'warn'
+		if (res.day === true) {
+			day = 'Day'
+			dayTone = 'ok'
+		} else if (res.day === false) {
+			day = 'Night'
+			dayTone = 'warn'
+		}
+		let awbNames = ['Auto', 'Sunny', 'Cloudy', 'Office', 'Home']
+		let awbN = Number(res.awb_mode)
+		let awb = awbNames[awbN] !== undefined ? awbNames[awbN] : show(res.awb_mode)
+		let awbTone = awbN === 0 ? 'ok' : 'warn'
+		let cloudTone = (res.cloud_pct === null || res.cloud_pct === undefined) ? 'warn' : 'ok'
+		let fields = [
+			['Luma', show(res.luma)],
+			['Exposure', show(res.aec)],
+			['Gain register', show(res.gain_reg)],
+			['Gain', show(res.gain_x)],
+			['Light index', show(res.light_idx)],
+			['White balance', awb, awbTone],
+			['AWB gains', gains],
+			['Daylight', day, dayTone],
+			['Sky pixels', show(res.sky_px)],
+			['Saturated %', show(res.sat_pct)],
+			['Cloud %', show(res.cloud_pct), cloudTone],
+			['R/B mean', show(res.rb_mean)],
+			['Sharpness', show(res.sharp)],
+			['Frame', res.frame ? res.frame.join('\u00d7') : '\u2014'],
+			['Decoded', res.dec ? res.dec.join('\u00d7') : '\u2014'],
+			['Compute ms', show(res.ms)]
+		]
+		fields.forEach(function (f) {
+			box.appendChild(row(f[0], f[1], f[2]))
+		})
+	}
+
+	function loadStats() {
+		ajax({
+			url: '/get_sky_stats',
+			success: showStats,
+			error: function () {
+				toast({ txt: 'Could not load sky stats', type: 'error' })
+			}
+		})
+	}
+
+	function toggleAuto() {
+		let btn = document.querySelector('#auto_btn')
+		if (autoTimer) {
+			clearInterval(autoTimer)
+			autoTimer = null
+			btn.textContent = 'Auto-refresh off'
+			btn.classList.remove('is-live')
+			return
+		}
+		autoTimer = setInterval(loadStats, 10000)
+		btn.textContent = 'Auto-refresh on'
+		btn.classList.add('is-live')
+		loadStats()
+	}
+
+	function measureNow() {
+		ajax({
+			url: '/get_sky_stats',
+			data: { fresh: 1 },
+			success: function (res) {
+				showStats(res)
+				if (res && res.status === 0)
+					toast({ txt: res.msg || 'Measure failed', type: 'error' })
+			},
+			error: function (err) {
+				if (err == 429)
+					toast({ txt: 'Busy, wait a few seconds', type: 'error' })
+				else
+					toast({ txt: 'Measure failed', type: 'error' })
+			}
+		})
+	}
+
+	function loadCfg() {
+		ajax({
+			url: '/get_sky_cfg',
+			success: function (res) {
+				document.querySelector('#sky_en').checked = res.sky_en == 1
+				document.querySelector('#sky_x').value = res.sky_x
+				document.querySelector('#sky_y').value = res.sky_y
+				document.querySelector('#sky_w').value = res.sky_w
+				document.querySelector('#sky_h').value = res.sky_h
+				document.querySelector('#sky_rb').value = res.sky_rb
+				document.querySelector('#sky_sat').value = res.sky_sat
+				document.querySelector('#sky_awb').value = res.sky_awb
+				document.querySelector('#sky_daym').value = res.sky_daym
+				drawMask()
+			},
+			error: function () {
+				toast({ txt: 'Could not load sky settings', type: 'error' })
+			}
+		})
+	}
+
+	function saveCfg() {
+		let data = {
+			sky_en: document.querySelector('#sky_en').checked ? 1 : 0,
+			sky_x: Number(num('#sky_x')),
+			sky_y: Number(num('#sky_y')),
+			sky_w: Number(num('#sky_w')),
+			sky_h: Number(num('#sky_h')),
+			sky_rb: Number(num('#sky_rb')),
+			sky_sat: Number(num('#sky_sat')),
+			sky_awb: Number(num('#sky_awb')),
+			sky_daym: Number(num('#sky_daym'))
+		}
+		ajax({
+			method: 'post',
+			url: '/set_sky_cfg',
+			data: data,
+			success: function (res) {
+				if (res && res.status === 0) {
+					toast({ txt: res.msg || 'Failed', type: 'error' })
+					return
+				}
+				toast({ txt: 'Success', type: 'success' })
+				drawMask()
+				loadStats()
+			},
+			error: function () {
+				toast({ txt: 'Could not save sky settings', type: 'error' })
+			}
+		})
+	}
+
+	;['#sky_x', '#sky_y', '#sky_w', '#sky_h'].forEach(function (id) {
+		document.querySelector(id).addEventListener('input', drawMask)
+	})
+
+	loadCfg()
+	loadStats()
+	reloadStill()
+</script>
+</html>

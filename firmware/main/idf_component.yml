@@ -1,0 +1,5 @@
+## Pulls espressif/esp32-camera via the IDF component manager.
+dependencies:
+  espressif/esp32-camera: "^2.0.4"
+  espressif/esp_websocket_client: "^1.4.0"
+  espressif/mdns: "^1.8.0"

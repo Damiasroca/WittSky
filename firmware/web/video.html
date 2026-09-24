@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Camera</title>
+    <link rel="stylesheet" href="./axcss.css">
+    <style type="text/css">
+        #content .common-btn {
+            background-repeat: no-repeat;
+            background-position: center center;
+        }
+
+        #get-still {
+            background-image: url('./imgs/photo.png');
+        }
+
+        /* #toggle-stream{
+                background-image: url('./imgs/Start.png');
+                overflow: hidden;
+                font-size: 0;
+            } */
+
+        .img-wrap {
+            padding: 16px 24px 8px;
+        }
+
+        #stream {
+            display: block;
+            width: 100%;
+            max-height: 640px;
+            min-height: 220px;
+            border-radius: 10px;
+            object-fit: contain;
+            background: var(--bg);
+            border: 1px solid var(--line);
+        }
+
+        #content input[type="range"] {
+            padding: 0px;
+            border: none;
+            border-radius: 0px;
+            width: 200px;
+            margin: 0px 10px;
+        }
+
+        .switch {
+            display: block;
+            position: relative;
+            line-height: 22px;
+            font-size: 16px;
+            height: 22px
+        }
+
+        .switch input {
+            display: none;
+        }
+
+        .slider {
+            width: 51px;
+            height: 21px;
+            border-radius: 21px;
+            cursor: pointer;
+            background-color: #ccc;
+        }
+
+        .slider,
+        .slider:before {
+            display: inline-block;
+            transition: 0.3s;
+        }
+
+        .slider:before {
+            position: relative;
+            content: "";
+            border-radius: 50%;
+            height: 15px;
+            width: 15px;
+            left: 4px;
+            top: 2px;
+            background-color: #fff;
+        }
+
+        .switch input:checked+.slider {
+            background-color: var(--btn-bg);
+        }
+
+        .switch input:checked+.slider:before {
+            transform: translateX(27px);
+        }
+
+        .hidden {
+            display: none
+        }
+
+        #content .btn-box .common-btn {
+            width: auto;
+            min-width: 120px;
+            height: auto;
+            padding: 9px 18px;
+            font-size: 14px;
+        }
+
+        #content .btn-box .pwd-des {
+            flex-basis: 100%;
+            max-width: 460px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div id="sidebar"> </div>
+
+        <div class="content" id="content">
+            <header class="page-head">
+                <h1 class="page-til">Camera</h1>
+                <p class="page-sub">Live picture, colour, and orientation. Changes show immediately. Save keeps them after reboot.</p>
+            </header>
+            <section class="content-box" data-tone="cam">
+                <h2 class="input-box-til">Live view</h2>
+                <div class="img-wrap">
+                    <figure>
+                        <div id="stream-container">
+                            <img id="stream" src="">
+                        </div>
+                    </figure>
+                </div>
+            </section>
+            <section class="content-box" data-tone="ok">
+                <h2 class="input-box-til">Image</h2>
+                <!-- <div class="btn-box">
+                        <button id="get-still" class="common-btn" onclick="getStill()"></button>
+                        <button id="toggle-stream" class="common-btn" onclick="toggleStream()">Start Stream</button>
+                    </div> -->
+                <div class="input-box">
+                    <div class="input-des">Resolution</div>
+                    <div class="input-item">
+                        <select id="resolution" class="params-val">
+                            <option value="15">UXGA(1600x1200)</option>
+                            <option value="14">SXGA(1280x1024)</option>
+                            <option value="12">XGA(1024x768)</option>
+                            <option value="11" selected="selected">SVGA(800x600)</option>
+                            <option value="10">VGA(640x480)</option>
+                            <option value="8">CIF(400x296)</option>
+                            <option value="6">QVGA(320x240)</option>
+                            <option value="4">HQVGA(240x176)</option>
+                            <option value="1">QQVGA(160x120)</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- <div class="input-box">
+                        <div class="input-des">Quality</div>
+                        <div class="input-item">
+                            10 <input type="range" id="quality" class="params-val" min="10" max="63" value="10"> 63
+                        </div>
+                    </div> -->
+                <div class="input-box">
+                    <div class="input-des">Brightness</div>
+                    <div class="input-item">
+                        -2 <input type="range" id="brightness" class="params-val" min="-2" max="2" value="0"> 2
+                    </div>
+                </div>
+                <div class="input-box">
+                    <div class="input-des">Contrast</div>
+                    <div class="input-item">
+                        -2 <input type="range" id="contrast" class="params-val" min="-2" max="2" value="0"> 2
+                    </div>
+                </div>
+                <div class="input-box">
+                    <div class="input-des">Saturation</div>
+                    <div class="input-item">
+                        -2 <input type="range" id="saturation" class="params-val" min="-2" max="2" value="0"> 2
+                    </div>
+                </div>
+                <!-- <div class="input-box">
+                        <div class="input-des">Special Effect</div>
+                        <div class="input-item">
+                            <select id="special_effect" class="params-val">
+                                <option value="0" selected="selected">No Effect</option>
+                                <option value="1">Negative</option>
+                                <option value="2">Grayscale</option>
+                                <option value="3">Red Tint</option>
+                                <option value="4">Green Tint</option>
+                                <option value="5">Blue Tint</option>
+                                <option value="6">Sepia</option>
+                            </select>
+                        </div>
+                    </div> -->
+                <!-- <div class="input-box">
+                        <div class="input-des">AWB</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="awb" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="awb"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">AWB Gain</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="awb_gain" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="awb_gain"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box" id="wb-mode-box">
+                        <div class="input-des">WB Mode</div>
+                        <div class="input-item">
+                            <select id="wb_mode" class="params-val">
+                                <option value="0" selected="selected">Auto</option>
+                                <option value="1">Sunny</option>
+                                <option value="2">Cloudy</option>
+                                <option value="3">Office</option>
+                                <option value="4">Home</option>
+                            </select>
+                        </div>
+                    </div> -->
+                <!-- <div class="input-box">
+                        <div class="input-des">AEC SENSOR</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="aec_sensor" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="aec_sensor"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">AEC DSP</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="aec_dsp" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="aec_dsp"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">AE Level</div>
+                        <div class="input-item">
+                            -2 <input type="range" id="ae_level" class="params-val" min="-2" max="2" value="0"> 2
+                        </div>
+                    </div> -->
+                <!-- <div class="input-box" id="exposure-box">
+                        <div class="input-des">Exposure</div>
+                        <div class="input-item">
+                            0 <input type="range" id="exposure" class="params-val" min="0" max="1200" value="204">
+                            1200
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">AGC</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="agc" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="agc"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box" id="gain-box">
+                        <div class="input-des">Gain</div>
+                        <div class="input-item">
+                            1x <input type="range" class="params-val" id="gain" min="0" max="30" value="5"> 31x
+                        </div>
+                    </div>
+                    <div class="input-box" id="gain-ceil-box">
+                        <div class="input-des">Gain Ceiling</div>
+                        <div class="input-item">
+                            2x <input type="range" id="gain_ceiling" class="params-val" min="0" max="6" value="0">
+                            128x
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">BPC</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="bpc" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="bpc"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">WPC</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="wpc" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="wpc"></label>
+                            </div>
+                        </div>
+                    </div> -->
+                <!-- <div class="input-box">
+                        <div class="input-des">Raw GMA</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="raw_gma" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="raw_gma"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">Lens Correction</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="lens_correction" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="lens_correction"></label>
+                            </div>
+                        </div>
+                    </div> -->
+                <div class="btn-box">
+                    <button type="button" class="common-btn" onclick="saveVideo()">Save</button>
+                </div>
+            </section>
+            <section class="content-box" data-tone="net">
+                <h2 class="input-box-til">Orientation</h2>
+                <div class="input-box">
+                    <div class="input-des">H-Mirror</div>
+                    <div class="input-item">
+                        <div class="switch">
+                            <input id="h_mirror" class="params-val" type="checkbox" checked="checked">
+                            <label class="slider" for="h_mirror"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-box">
+                    <div class="input-des">V-Flip</div>
+                    <div class="input-item">
+                        <div class="switch">
+                            <input id="v_flip" class="params-val" type="checkbox" checked="checked">
+                            <label class="slider" for="v_flip"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-box">
+                    <button type="button" class="common-btn" onclick="saveVideo()">Save</button>
+                    <div class="pwd-des">Resolution, brightness, contrast, saturation, H-Mirror and V-Flip are kept after reboot. The controls above still update the live image immediately.</div>
+                </div>
+            </section>
+                <!-- <div class="input-box">
+                        <div class="input-des">DCW (Downsize EN)</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="dcw_downsize" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="dcw_downsize"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <div class="input-des">Color Bar</div>
+                        <div class="input-item">
+                            <div class="switch">
+                                <input id="color_bar" class="params-val" type="checkbox" checked="checked">
+                                <label class="slider" for="color_bar"></label>
+                            </div>
+                        </div>
+                    </div> -->
+        </div>
+    </div>
+</body>
+<script src="./axjs.js"></script>
+<script>
+    let baseHost = document.location.origin
+    let streamUrl = baseHost + ':81'
+
+    getData();
+
+    const hide = el => { //display : none
+        el.classList.add('hidden')
+    }
+    const show = el => { //display : block
+        el.classList.remove('hidden')
+    }
+    const disabled = el => { //button disabled
+        el.disabled = true
+    }
+
+    const enabled = el => { //button disabled
+        el.disabled = false
+    }
+
+
+
+
+    // const gainBox = document.querySelector('#gain-box')
+    // const gainCeilBox = document.querySelector('#gain-ceil-box')
+    // const exposureBox = document.querySelector('#exposure-box')
+    // const wbModeBox = document.querySelector('#wb-mode-box')
+
+
+    function updateValue(el, value, updateRemote) { //update input value
+        updateRemote = updateRemote == null ? true : updateRemote
+        let initialValue = ''
+        value = (~~value);
+        if (el.type === 'checkbox') {
+            initialValue = el.checked
+            el.checked = !!value
+        } else {
+            initialValue = el.value
+            el.value = value
+        }
+
+        if (updateRemote && initialValue !== value) {
+            updateConfig(el);
+        }
+        // else if (!updateRemote) {
+        // if (el.id === "aec_sensor") {
+        //     value ? hide(exposureBox) : show(exposureBox)
+        // } 
+        // else if (el.id === "agc") {
+        //     if (value) {
+        //         show(gainCeilBox)
+        //         hide(gainBox)
+        //     } else {
+        //         show(gainBox)
+        //         hide(gainCeilBox)
+        //     }
+        // } 
+        // else if (el.id === "awb_gain") {
+        //     value ? show(wbModeBox) : hide(wbModeBox)
+        // } 
+        // }
+    }
+
+    function updateConfig(el) {
+        let value = '';
+        switch (true) {
+            case el.type === 'checkbox':
+                value = el.checked ? 1 : 0;
+                break;
+            case el.type === 'range' || el.type === 'select-one':
+                value = el.value;
+                break;
+            default:
+                return;
+        }
+
+        let strMap = new Map();
+        strMap.set(el.id, value)
+        let params = {}
+        for (let [k, v] of strMap) {
+            params[k] = v + '';
+        }
+        ajax({
+            method: 'post',
+            url: '/set_video_info',
+            data: params,
+            success: function (res) {},
+            error: function (err) {
+                if (err == 0 || err == 404) {
+                    toast({
+                        txt: 'There is an error in the network, please check.',
+                        type: 'error'
+                    })
+                }
+            }
+        })
+    }
+
+    function getData() {
+        ajax({
+            url: '/get_video_info',
+            success: function (res) {
+                document.querySelectorAll('.params-val').forEach(el => {
+                    updateValue(el, res[el.id], false)
+                })
+            },
+            error: function (err) {
+                if (err == 0 || err == 404) {
+                    toast({
+                        txt: 'There is an error in the network, please check.',
+                        type: 'error'
+                    })
+                }
+            }
+        })
+    }
+
+
+    // document.querySelectorAll('.params-val').forEach(el => {
+    //     updateValue(el, testData[el.id], false)
+    // })
+
+    const view = document.querySelector('#stream')
+    // const viewContainer = document.querySelector('#stream-container')
+    // const streamButton = document.querySelector('#toggle-stream')
+    // const enrollButton = document.querySelector('#face_enroll')
+    // const closeButton = document.querySelector('#close-stream')
+
+
+    function startStream() { //get img start
+        view.src = `${streamUrl}/stream`
+        // show(viewContainer)
+        // streamButton.innerHTML = 'Stop Stream'
+        // streamButton.style.backgroundImage = 'url("./imgs/Stop.png")'
+    }
+
+    startStream();
+
+
+    // function stopStream() {//stop get img
+    //     window.stop();
+    //     streamButton.innerHTML = 'Start Stream'
+    //     streamButton.style.backgroundImage = 'url("./imgs/Start.png")'
+    // }
+
+    // function getStill() {//get img
+    //     stopStream()
+    //     view.src = `${baseHost}/capture?_cb=${Date.now()}`
+    //     show(viewContainer)
+    // }
+
+    // function toggleStream() {
+    //     const streamEnabled = streamButton.innerHTML === 'Stop Stream'
+    //     if (streamEnabled) {
+    //         stopStream()
+    //     } else {
+    //         startStream()
+    //     }
+    // }
+
+
+    //每个值改变都会触发
+    document
+        .querySelectorAll('.params-val')
+        .forEach(el => {
+            el.onchange = () => updateConfig(el)
+        })
+
+    // Gain 改变值
+    // const agc = document.querySelector('#agc')
+    // agc.onchange = () => {
+    //     updateConfig(agc)
+    //     if (agc.checked) {
+    //         show(gainCeilBox)
+    //         hide(gainBox)
+    //     } else {
+    //         hide(gainCeilBox)
+    //         show(gainBox)
+    //     }
+    // }
+
+    // Exposure 值改变
+    // const aec = document.querySelector('#aec_sensor')
+    // aec.onchange = () => {
+    //     updateConfig(aec)
+    //     aec.checked ? hide(exposureBox) : show(exposureBox)
+    // }
+
+    // AWB 值改变
+    // const awb = document.querySelector('#awb_gain')
+    // awb.onchange = () => {
+    //     updateConfig(awb)
+    //     awb.checked ? show(wbModeBox) : hide(wbModeBox)
+    // }
+
+    // Detection and framesize
+    const resolution = document.querySelector('#resolution')
+
+    resolution.onchange = () => {
+        updateConfig(resolution)
+    }
+
+    function saveVideo() {
+        let ids = ['resolution', 'brightness', 'contrast', 'saturation', 'h_mirror', 'v_flip']
+        let params = {}
+        ids.forEach(function (id) {
+            let el = document.getElementById(id)
+            params[id] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : Number(el.value)
+        })
+        ajax({
+            method: 'post',
+            url: '/set_video_cfg',
+            data: params,
+            success: function (res) {
+                if (res && res.status === 0) {
+                    toast({ txt: res.msg || 'Failed', type: 'error' })
+                    return
+                }
+                let msg = res && res.msg && res.msg !== 'ok' ? res.msg : 'Saved'
+                toast({ txt: msg, type: 'success' })
+            },
+            error: function () {
+                toast({ txt: 'Could not save video settings', type: 'error' })
+            }
+        })
+    }
+</script>
+
+</html>

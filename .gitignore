@@ -1,0 +1,12 @@
+# Lab Wi-Fi config. Copy settings.env.example and edit that copy.
+OTA_SPOOF/settings.env
+OTA_SPOOF/__pycache__/
+OTA_SPOOF/firmware/
+
+# ESP-IDF outputs. firmware/.gitignore covers these when git is run from firmware/.
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+firmware/.cache/

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Status</title>
+	<link rel="stylesheet" href="./axcss.css">
+</head>
+<body>
+	<div class="wrap">
+		<div id="sidebar"></div>
+		<div class="content" id="content">
+			<header class="page-head">
+				<h1 class="page-til">Status</h1>
+				<p class="page-sub">Live health of the radio, camera, memory, and uploads.</p>
+			</header>
+			<section class="content-box" data-tone="net">
+				<h2 class="input-box-til">Connection</h2>
+				<div class="input-box">
+					<div class="input-des">WiFi RSSI</div>
+					<div class="input-item"><span class="ind" id="h-rssi">—</span></div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">SSID / IP</div>
+					<div class="input-item" id="h-net">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Camera</div>
+					<div class="input-item"><span class="ind" id="h-cam">—</span></div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Last upload</div>
+					<div class="input-item"><span class="ind" id="h-upload">—</span></div>
+				</div>
+			</section>
+			<section class="content-box" data-tone="ok">
+				<h2 class="input-box-til">Device</h2>
+				<div class="input-box">
+					<div class="input-des">MAC</div>
+					<div class="input-item" id="h-mac">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Uptime</div>
+					<div class="input-item" id="h-uptime">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Free heap</div>
+					<div class="input-item" id="h-heap">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Free PSRAM</div>
+					<div class="input-item" id="h-psram">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Reboot reason</div>
+					<div class="input-item"><span class="ind" id="h-reset">—</span></div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Previous cause</div>
+					<div class="input-item" id="h-cause">—</div>
+				</div>
+			</section>
+			<section class="content-box" data-tone="warn">
+				<h2 class="input-box-til">Watchdog</h2>
+				<div class="input-box">
+					<div class="input-des">Fail streaks</div>
+					<div class="input-item"><span class="ind" id="h-streak">—</span></div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Auto-reboots</div>
+					<div class="input-item"><span class="ind" id="h-cap">—</span></div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="uploadNow()">Upload now</button>
+					<button type="button" class="common-btn" onclick="retryCam()">Retry camera</button>
+				</div>
+			</section>
+		</div>
+	</div>
+</body>
+<script src="./axjs.js"></script>
+<script>
+	let loading = new Loading()
+
+	function setInd(sel, text, tone) {
+		let el = document.querySelector(sel)
+		el.textContent = text
+		el.className = tone ? ('ind ' + tone) : 'ind'
+	}
+
+	function resetTone(reason) {
+		if (reason === 'PANIC' || reason === 'INT_WDT' || reason === 'TASK_WDT' ||
+			reason === 'WDT' || reason === 'BROWNOUT')
+			return 'err'
+		if (reason === 'SW' || reason === 'EXT' || reason === 'DEEPSLEEP')
+			return 'warn'
+		if (reason === 'POWERON')
+			return 'ok'
+		return ''
+	}
+
+	window.onHealth = function (res) {
+		document.querySelector('#h-mac').innerText = res.sta_mac || '—'
+		let rssiTone = 'err'
+		let rssiTxt = 'not connected'
+		if (res.rssi !== null && res.rssi !== undefined) {
+			rssiTxt = res.rssi + ' dBm (' + (res.rssi_label || '') + ')'
+			if (res.rssi_label === 'good') rssiTone = 'ok'
+			else if (res.rssi_label === 'fair') rssiTone = 'warn'
+			else rssiTone = 'err'
+		}
+		setInd('#h-rssi', rssiTxt, rssiTone)
+		document.querySelector('#h-uptime').innerText = fmtUptime(res.uptime_s)
+		document.querySelector('#h-heap').innerText = fmtBytes(res.heap_free)
+		let ps = fmtBytes(res.psram_free)
+		if (res.psram_size)
+			ps += ' / ' + fmtBytes(res.psram_size)
+		document.querySelector('#h-psram').innerText = ps
+		setInd('#h-cam', res.camera_ok == 1 ? 'ok' : 'down', res.camera_ok == 1 ? 'ok' : 'err')
+		let link = res.sta_link || ''
+		let net = (res.ssid || '(none)') + '  ' + (res.sta_ip || '')
+		if (link && link !== 'up' && link !== 'idle')
+			net += '  (' + link + ')'
+		document.querySelector('#h-net').innerText = net
+		let upTone = ''
+		if (res.last_upload_age_s >= 0)
+			upTone = res.last_upload_ok == 1 ? 'ok' : 'err'
+		setInd('#h-upload', healthUploadText(res), upTone)
+		let reason = res.reboot_reason || '—'
+		setInd('#h-reset', reason, resetTone(reason))
+		document.querySelector('#h-cause').innerText = res.prev_cause || '—'
+		let camFail = res.cam_fail || 0
+		let upFail = res.up_fail || 0
+		let streakTone = 'ok'
+		if (camFail >= (res.wd_cam_n || 0) || upFail >= (res.wd_up_n || 0))
+			streakTone = 'err'
+		else if (camFail || upFail)
+			streakTone = 'warn'
+		setInd('#h-streak',
+			'camera ' + camFail + ' / ' + (res.wd_cam_n || 0) +
+			'   upload ' + upFail + ' / ' + (res.wd_up_n || 0),
+			streakTone)
+		let cap = (res.wd_reboots || 0) + ' / ' + (res.wd_cap_n || 0) +
+			' in ' + (res.wd_cap_m || 0) + ' min'
+		let capTone = 'ok'
+		if (res.wd_held_off == 1) {
+			cap += '  (holding — staying up)'
+			capTone = 'warn'
+		}
+		if (res.wd_en != 1) {
+			cap += '  (watchdog off)'
+			capTone = ''
+		} else if ((res.wd_reboots || 0) > 0 && res.wd_held_off != 1) {
+			capTone = 'warn'
+		}
+		setInd('#h-cap', cap, capTone)
+	}
+
+	function uploadNow() {
+		loading.show('Uploading')
+		ajax({
+			method: 'post',
+			url: '/upload_now',
+			data: {},
+			success: function (res) {
+				loading.hide()
+				toast({
+					txt: (res && res.msg) ? res.msg : 'Done',
+					type: (res && res.status == 1) ? 'success' : 'error'
+				})
+			},
+			error: function (err) {
+				loading.hide()
+				toast({ txt: err, type: 'error' })
+			}
+		})
+	}
+
+	function retryCam() {
+		loading.show('Retrying camera')
+		ajax({
+			method: 'post',
+			url: '/retry_camera',
+			data: {},
+			success: function (res) {
+				loading.hide()
+				toast({
+					txt: (res && res.msg) ? res.msg : 'Done',
+					type: (res && res.status == 1) ? 'success' : 'error'
+				})
+			},
+			error: function (err) {
+				loading.hide()
+				toast({ txt: err, type: 'error' })
+			}
+		})
+	}
+</script>
+</html>

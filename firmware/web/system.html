@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>System</title>
+	<link rel="stylesheet" href="./axcss.css">
+	<style type="text/css">
+		.version-box { padding-top: 10px; width: 260px; white-space: pre-wrap; line-height: 1.5em; }
+		.version-btn { width: 200px; margin: 0; }
+		.current-version-box { align-items: flex-start; }
+		.new-version { position: relative; }
+		.new-version::after {
+			content: ''; position: absolute; top: 10px; right: 10px;
+			height: 8px; width: 8px; border-radius: 50%; background-color: var(--err);
+			box-shadow: 0 0 0 3px rgba(224, 103, 95, .25);
+		}
+		#up-ver { display: none; }
+		.process-bg { position: fixed; inset: 0; background-color: transparent; }
+		#process { position: fixed; inset: 0; z-index: 80; }
+		.process-box {
+			position: absolute; width: min(460px, 92vw); min-height: 140px; top: 40%; left: 50%;
+			padding-bottom: 8px;
+			background: var(--raised); border: 1px solid var(--line);
+			border-radius: var(--radius); box-shadow: 0 18px 48px rgba(0, 0, 0, .4); z-index: 4;
+			transform: translate(-50%, -50%);
+		}
+		.process-p { font-size: 22px; font-weight: 650; color: var(--text); text-align: center; padding: 24px 0 12px; }
+		.process-flex { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 0 24px 20px; }
+		.process-txt { font-size: 15px; font-weight: 650; color: var(--text); width: 52px; text-align: right; }
+		.process-out { width: 400px; max-width: 70vw; height: 10px; background: var(--bg); border-radius: 20px; overflow: hidden; }
+		.process-in { width: 0; height: 10px; border-radius: 20px; background: var(--accent); }
+		#ws-log-box {
+			height: 220px; overflow-y: auto; background: var(--bg); color: var(--text);
+			border: 1px solid var(--line);
+			font-family: Consolas, "Courier New", monospace; font-size: 12px;
+			padding: 12px; border-radius: 10px; white-space: pre-wrap; word-break: break-all;
+		}
+		#ws-log-status { padding-bottom: 8px; font-size: 14px; font-weight: 650; }
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<div id="sidebar"></div>
+		<div class="content" id="content">
+			<header class="page-head">
+				<h1 class="page-til">System</h1>
+				<p class="page-sub">Watchdog, live logs, firmware, and device power.</p>
+			</header>
+			<section class="content-box" data-tone="warn">
+				<h2 class="input-box-til">Watchdog</h2>
+				<div class="input-box">
+					<div class="input-des">Enable</div>
+					<div class="input-item">
+						<label><input type="checkbox" id="wd_en" /> Auto-reboot on repeated camera or upload failures</label>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Camera failures</div>
+					<div class="input-item">
+						<input type="number" id="wd_cam_n" min="1" max="20" value="3" />
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Upload failures</div>
+					<div class="input-item">
+						<input type="number" id="wd_up_n" min="1" max="20" value="3" />
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Reboot cap</div>
+					<div class="input-item flex-no">
+						<input type="number" id="wd_cap_n" min="1" max="20" value="3" />
+						<div class="pwd-des">Auto-reboots allowed inside the window, then stay up.</div>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Cap window (min)</div>
+					<div class="input-item">
+						<input type="number" id="wd_cap_m" min="1" max="1440" value="60" />
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setWatchdog()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="net">
+				<h2 class="input-box-til">WebSocket logs</h2>
+				<div class="input-box">
+					<div class="input-des">Enable</div>
+					<div class="input-item">
+						<label><input type="checkbox" id="ws_log_en" /> Stream ESP_LOG over WebSocket</label>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">WebSocket URL</div>
+					<div class="input-item flex-no">
+						<input type="text" id="ws_log_url" maxlength="127" placeholder="/ws/log or ws://192.168.1.10:9000/logs" />
+						<div class="pwd-des">Path (served on port 82) or a remote ws:// / wss:// URL. Empty uses /ws/log.</div>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Log level</div>
+					<div class="input-item">
+						<select id="ws_log_level">
+							<option value="1">Error</option>
+							<option value="2">Warning</option>
+							<option value="3" selected>Info</option>
+							<option value="4">Debug</option>
+							<option value="5">Verbose</option>
+						</select>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Live log</div>
+					<div class="input-item flex-no">
+						<div id="ws-log-status" class="ind">off</div>
+						<div id="ws-log-box"></div>
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setWsLog()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="cam">
+				<h2 class="input-box-til">Firmware</h2>
+				<div class="input-box">
+					<div class="input-des">Upgrade</div>
+					<div class="input-item">
+						<input type="checkbox" id="upgrade" />
+						<label for="upgrade">Automatically upgrade firmware</label>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">OTA URL</div>
+					<div class="input-item">
+						<input type="text" id="ota_url" maxlength="127" placeholder="http://192.168.0.10/version.json" />
+						<div class="pwd-des">Empty disables OTA. JSON must include code, data.version, data.attach1file.</div>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Version</div>
+					<div class="input-item current-version-box">
+						<div class="version-box" id="current-version"></div>
+						<button type="button" id="check-ver" class="common-btn version-btn" onclick="checkVersion()">Check firmware</button>
+						<button type="button" id="up-ver" class="common-btn version-btn" onclick="upVersion()">Upgrade Version</button>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Flash from PC</div>
+					<div class="input-item">
+						<input type="file" id="fw_file" accept=".bin,application/octet-stream" />
+						<button type="button" class="common-btn version-btn" onclick="flashFromPc()">Flash file</button>
+						<div class="pwd-des">App .bin only (hp10_bringup.bin or a dumped ota slot). Not an ELF and not a full 4MB dump.</div>
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setUpgrade()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="err">
+				<h2 class="input-box-til">Power</h2>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="restore()">Restore default</button>
+					<button type="button" class="common-btn" onclick="reboot()">Reboot</button>
+				</div>
+			</section>
+		</div>
+	</div>
+	<div id="reboot-model">
+		<div class="reboot-txt"><span id="reboot-num"></span>&nbsp;Reboot</div>
+	</div>
+	<div class="model-wrap" id="modelWrap">
+		<div class="model-bg"></div>
+		<div class="model-content">
+			<div class="content-til" id="model-til"></div>
+			<div class="model-footer">
+				<button type="button" class="common-btn" onclick="closeModel()">Cancel</button>
+				<button type="button" class="common-btn" onclick="startRequest()">Confirm</button>
+			</div>
+		</div>
+	</div>
+</body>
+<script src="./axjs.js"></script>
+<script>
+	let loading = new Loading()
+	let restoreStr = ''
+	let restaringTime = 15
+	let upgradeKey = 'check'
+	let noSize = false
+
+	function getDevice() {
+		ajax({
+			url: '/get_device_info',
+			success: function (res) {
+				document.querySelector('#upgrade').checked = res.upgrade == 1
+				document.querySelector('#ota_url').value = res.ota_url || ''
+				document.querySelector('#wd_en').checked = res.wd_en == 1
+				if (res.wd_cam_n) document.querySelector('#wd_cam_n').value = res.wd_cam_n
+				if (res.wd_up_n) document.querySelector('#wd_up_n').value = res.wd_up_n
+				if (res.wd_cap_n) document.querySelector('#wd_cap_n').value = res.wd_cap_n
+				if (res.wd_cap_m) document.querySelector('#wd_cap_m').value = res.wd_cap_m
+				if (res.newVersion == 1) {
+					document.querySelector('#check-ver').style.display = 'none'
+					document.querySelector('#up-ver').style.display = 'block'
+					document.querySelector('#up-ver').classList.add('new-version')
+				}
+				if (res.curr_msg)
+					document.querySelector('#current-version').innerText = res.curr_msg
+				restaringTime = res.time || 15
+			},
+			error: function (err) {
+				if (err == 0 || err == 404)
+					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
+			}
+		})
+	}
+
+	function setWatchdog() {
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: {
+				wd_en: document.querySelector('#wd_en').checked ? 1 : 0,
+				wd_cam_n: document.querySelector('#wd_cam_n').value,
+				wd_up_n: document.querySelector('#wd_up_n').value,
+				wd_cap_n: document.querySelector('#wd_cap_n').value,
+				wd_cap_m: document.querySelector('#wd_cap_m').value
+			},
+			success: function () { toast({ txt: 'Success', type: 'success' }) },
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
+	function setUpgrade() {
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: { ota_url: document.querySelector('#ota_url').value.trim() },
+			success: function () { toast({ txt: 'Success', type: 'success' }) },
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
+	function getWs() {
+		ajax({
+			url: '/get_ws_settings',
+			success: function (res) {
+				document.querySelector('#ws_log_en').checked = res.ws_log_en == 1
+				document.querySelector('#ws_log_url').value = res.ws_log_url || ''
+				if (res.ws_log_level)
+					document.querySelector('#ws_log_level').value = String(res.ws_log_level)
+				wsLogConnect(res)
+			}
+		})
+	}
+
+	let wsLogSock = null
+	let wsLogLines = 0
+	let wsLogRetry = 0
+	let wsLogTimer = null
+
+	function wsLogViewerUrl(res) {
+		let path = (res && res.ws_log_path) ? res.ws_log_path : '/ws/log'
+		let typed = document.querySelector('#ws_log_url').value.trim()
+		if (typed.charAt(0) === '/')
+			path = typed
+		let port = (res && res.ws_log_port) ? res.ws_log_port : 82
+		let proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+		return proto + '//' + location.hostname + ':' + port + path
+	}
+
+	function wsLogAppend(txt) {
+		let box = document.querySelector('#ws-log-box')
+		if (!box) return
+		box.appendChild(document.createTextNode(txt))
+		wsLogLines++
+		while (wsLogLines > 400 && box.firstChild) {
+			box.removeChild(box.firstChild)
+			wsLogLines--
+		}
+		box.scrollTop = box.scrollHeight
+	}
+
+	function wsLogDisconnect() {
+		if (wsLogTimer) { clearTimeout(wsLogTimer); wsLogTimer = null }
+		if (wsLogSock) {
+			wsLogSock.onclose = null
+			wsLogSock.onerror = null
+			wsLogSock.onmessage = null
+			try { wsLogSock.close() } catch (e) {}
+			wsLogSock = null
+		}
+	}
+
+	function setLogStatus(text, tone) {
+		let st = document.querySelector('#ws-log-status')
+		if (!st) return
+		st.textContent = text
+		st.className = tone ? ('ind ' + tone) : 'ind'
+	}
+
+	function wsLogConnect(res) {
+		wsLogDisconnect()
+		if (!document.querySelector('#ws_log_en').checked) {
+			setLogStatus((res && res.ws_log_status) ? res.ws_log_status : 'off', '')
+			return
+		}
+		let url = wsLogViewerUrl(res)
+		let prefix = (res && res.ws_log_status) ? res.ws_log_status + ' — ' : ''
+		setLogStatus(prefix + 'connecting ' + url, 'warn')
+		try { wsLogSock = new WebSocket(url) } catch (e) {
+			setLogStatus('bad URL', 'err')
+			return
+		}
+		wsLogSock.onopen = function () {
+			wsLogRetry = 0
+			setLogStatus(prefix + 'live ' + url, 'ok')
+		}
+		wsLogSock.onmessage = function (ev) {
+			wsLogAppend(typeof ev.data === 'string' ? ev.data : '')
+		}
+		wsLogSock.onerror = function () {}
+		wsLogSock.onclose = function () {
+			wsLogSock = null
+			if (!document.querySelector('#ws_log_en').checked) return
+			wsLogRetry++
+			let wait = Math.min(8000, 500 * Math.pow(2, Math.min(wsLogRetry, 4)))
+			setLogStatus('reconnect in ' + Math.round(wait / 1000) + 's', 'warn')
+			wsLogTimer = setTimeout(function () { wsLogConnect(res) }, wait)
+		}
+	}
+
+	function setWsLog() {
+		ajax({
+			method: 'post',
+			url: '/set_ws_settings',
+			data: {
+				ws_log_en: document.querySelector('#ws_log_en').checked ? 1 : 0,
+				ws_log_level: document.querySelector('#ws_log_level').value,
+				ws_log_url: document.querySelector('#ws_log_url').value.trim()
+			},
+			success: function (res) {
+				if (res && res.status == '0') {
+					toast({ txt: res.msg || 'Failed', type: 'error' })
+					return
+				}
+				toast({ txt: 'Success', type: 'success' })
+				getWs()
+			},
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
+	function checkVersion() {
+		upgradeKey = 'check'
+		loading.show('Check the new version')
+		ajax({
+			method: 'post',
+			url: '/upgrade_process',
+			data: { upgrade: upgradeKey },
+			success: function (res) {
+				loading.hide()
+				if (res.err) {
+					document.querySelector('#current-version').innerText = res.msg
+					toast({ txt: res.msg, type: 'error' })
+				} else if (res.is_new) {
+					document.querySelector('#current-version').innerText = res.msg
+					document.querySelector('#check-ver').style.display = 'none'
+					document.querySelector('#up-ver').style.display = 'block'
+					document.querySelector('#up-ver').classList.add('new-version')
+				} else {
+					document.querySelector('#current-version').innerText = "It's the latest version\r\n" + res.msg
+				}
+			},
+			error: function (err) {
+				loading.hide()
+				toast({ txt: err, type: 'error' })
+			}
+		})
+	}
+
+	function setProcessPct(pct) {
+		let bar = document.querySelector('#process-in')
+		let txt = document.querySelector('#process-txt')
+		if (!bar || !txt) return
+		if (pct < 0) pct = 0
+		if (pct > 100) pct = 100
+		bar.style.width = parseInt((400 * pct) / 100) + 'px'
+		txt.innerText = pct + '%'
+	}
+
+	function showUpgradeOverlay() {
+		noSize = false
+		if (document.querySelector('#process')) return
+		let process = document.createElement('div')
+		process.id = 'process'
+		process.innerHTML = '<div class="process-bg"></div><div class="process-box"><p class="process-p" id="process-p">Upgrading</p><div class="process-flex"><div class="process-out"><div class="process-in" id="process-in"></div></div><div class="process-txt" id="process-txt">0%</div></div></div>'
+		document.querySelector('#content').appendChild(process)
+	}
+
+	function hideUpgradeOverlay() {
+		let proDom = document.querySelector('#process')
+		if (proDom) document.querySelector('#content').removeChild(proDom)
+	}
+
+	function upgradeRebooting() {
+		hideUpgradeOverlay()
+		loading.show('Upgrade successful, the device is rebooting...')
+		localStorage.removeItem('newVersion')
+		setTimeout(function () {
+			loading.hide()
+			location.href = './login.html'
+		}, 15000)
+	}
+
+	function upVersion() {
+		showUpgradeOverlay()
+		upgradeKey = 'start'
+		getProcess()
+	}
+
+	function flashFromPc() {
+		let f = document.querySelector('#fw_file').files[0]
+		if (!f) {
+			toast({ txt: 'Choose a .bin file', type: 'error' })
+			return
+		}
+		if (f.size < 512 || f.size > 1835008) {
+			toast({ txt: 'File is not an app image (max 1792K)', type: 'error' })
+			return
+		}
+		showUpgradeOverlay()
+		let xhr = new XMLHttpRequest()
+		xhr.timeout = 300000
+		xhr.responseType = 'json'
+		xhr.upload.onprogress = function (e) {
+			if (!e.lengthComputable) return
+			setProcessPct(Math.floor((e.loaded * 99) / e.total))
+		}
+		xhr.onload = function () {
+			let res = xhr.response
+			if (xhr.status >= 200 && xhr.status < 300 && res && res.status == 1) {
+				setProcessPct(100)
+				upgradeRebooting()
+			} else {
+				upgradeKey = 'check'
+				noSize = true
+				hideUpgradeOverlay()
+				toast({ txt: (res && res.msg) ? res.msg : 'Upgrade error', type: 'error' })
+			}
+		}
+		xhr.onerror = xhr.ontimeout = function () {
+			upgradeKey = 'check'
+			noSize = true
+			hideUpgradeOverlay()
+			toast({ txt: 'Upgrade error', type: 'error' })
+		}
+		xhr.open('POST', '/upgrade_upload')
+		xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+		xhr.send(f)
+	}
+
+	function getProcess() {
+		if (noSize) return
+		ajax({
+			method: 'post',
+			url: '/upgrade_process',
+			data: { upgrade: upgradeKey },
+			success: function (res) {
+				if (res.status == 1) {
+					upgradeKey = 'running'
+					setProcessPct(res.size)
+					if (res.size == 100) {
+						upgradeKey = 'over'
+						setTimeout(function () { getProcess(); noSize = true }, 100)
+						upgradeRebooting()
+					}
+				} else {
+					upgradeKey = 'check'
+					toast({ txt: res.msg, type: 'error' })
+					noSize = true
+					hideUpgradeOverlay()
+				}
+				if (upgradeKey === 'over') return
+				setTimeout(getProcess, 100)
+			},
+			error: function () {
+				upgradeKey = 'check'
+				noSize = true
+				hideUpgradeOverlay()
+				toast({ txt: 'Upgrade error', type: 'error' })
+			}
+		})
+	}
+
+	function restore() {
+		document.querySelector('#modelWrap').style.display = 'block'
+		document.querySelector('#model-til').innerText = 'Are you sure to Reset Factory ?'
+		restoreStr = 'restore'
+	}
+
+	function reboot() {
+		document.querySelector('#modelWrap').style.display = 'block'
+		document.querySelector('#model-til').innerText = 'Are you sure to Reboot Device ?'
+		restoreStr = 'reboot'
+	}
+
+	function closeModel() {
+		document.querySelector('#modelWrap').style.display = 'none'
+	}
+
+	function startRequest() {
+		let data = restoreStr === 'restore' ? { sysrestore: 1 } : { sysreboot: 1 }
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: data,
+			success: function () { restaring() },
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+		document.querySelector('#modelWrap').style.display = 'none'
+	}
+
+	function restaring() {
+		document.querySelector('#reboot-model').style.display = 'block'
+		let num = parseInt(restaringTime)
+		let txtBox = document.querySelector('#reboot-num')
+		let time = setInterval(function () {
+			if (1 >= num) {
+				clearInterval(time)
+				location.href = './login.html'
+			}
+			num--
+			txtBox.innerHTML = num + ' s'
+		}, 1000)
+	}
+
+	getDevice()
+	getWs()
+</script>
+</html>

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Network</title>
+	<link rel="stylesheet" href="./axcss.css">
+	<style type="text/css">
+		#content .scan-btn { width: 150px; margin: 0 0 0 15px; }
+		.ssid-box { position: relative; }
+		#wifiListWrap {
+			display: none; position: absolute; left: 0; top: 100%;
+			border-radius: 6px; width: 100%; overflow: hidden; z-index: 5;
+		}
+		.wifi-list-wrap { max-height: 400px; width: 100%; overflow-y: auto; }
+		.wifi-list {
+			background: var(--raised); display: flex; justify-content: center;
+			align-items: flex-start; flex-direction: column; width: 100%;
+			border: 1px solid var(--line); border-radius: 8px;
+		}
+		.wifi-list .wifi-list-item {
+			font-size: 14px; padding: 10px 14px; width: 100%;
+			cursor: pointer; color: var(--text); display: flex; align-items: center;
+		}
+		.wifi-list .wifi-list-item:hover { background: var(--surface); }
+		.wifi-list .wifi-img-box { position: relative; }
+		.wifi-list .wifi-img-box .wifi-lock {
+			position: absolute; top: 0; left: 0; width: 10px; height: 10px; z-index: 2;
+		}
+		.wifi-list .wifi-img-box .wifi-icon {
+			width: 20px; height: 20px; object-fit: contain; margin-right: 10px;
+		}
+		#apAutoBox { align-items: flex-start; }
+		#apAutoBox input { margin-top: 5px; }
+		#apAutoBox label { flex: 1; line-height: 1.5em; }
+		#apLeases, #apLog {
+			white-space: pre-wrap;
+			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+			font-size: 13px; line-height: 1.45;
+		}
+		#apLog { display: block; max-height: 160px; overflow: auto; }
+		img { width: 100px; height: 100px; object-fit: contain; }
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<div id="sidebar"></div>
+		<div class="content" id="content">
+			<header class="page-head">
+				<h1 class="page-til">Network</h1>
+				<p class="page-sub">Name on the LAN, router Wi-Fi, and the device access point.</p>
+			</header>
+			<section class="content-box" data-tone="net">
+				<h2 class="input-box-til">mDNS</h2>
+				<div class="input-box">
+					<div class="input-des">Hostname</div>
+					<div class="input-item flex-no">
+						<input type="text" id="mdns_host" maxlength="31" placeholder="WittSky-Camera" />
+						<div class="pwd-des">http://<span id="mdns-preview">camera</span>.local on the LAN after the router assigns an IP. Letters, digits, hyphen. Two devices with the same name will collide.</div>
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setMdns()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="ok">
+				<h2 class="input-box-til">Wi-Fi</h2>
+				<div class="input-box">
+					<div class="input-des">Router SSID</div>
+					<div class="input-item">
+						<div class="ssid-box">
+							<input type="text" id="ssid" />
+							<div id="wifiListWrap">
+								<div class="wifi-list-wrap">
+									<div class="wifi-list" id="wifiList"></div>
+								</div>
+							</div>
+						</div>
+						<button type="button" id="scanBtn" class="common-btn scan-btn" onclick="scanRouter()">Scan Router</button>
+					</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">WIFI Password</div>
+					<div class="input-item flex-no">
+						<div>
+							<input type="password" id="wifi_pwd" maxlength="63" />
+							<label class="pwd-label"><input type="checkbox" autocomplete="off"
+									onchange="wifiPwdChange(this,'wifi_pwd')">show password </label>
+						</div>
+						<div class="pwd-des">If your router is dual-band, connect to the 2.4 GHz band.</div>
+					</div>
+				</div>
+				<div id="wifiBox">
+					<div class="input-box">
+						<div class="input-des">IP Address</div>
+						<div class="input-item">
+							<input type="text" id="wifi_ip" disabled value="0.0.0.0" />
+						</div>
+					</div>
+					<div class="input-box">
+						<div class="input-des">Subnet Mask</div>
+						<div class="input-item">
+							<input type="text" id="wifi_mask" disabled value="0.0.0.0" />
+						</div>
+					</div>
+					<div class="input-box">
+						<div class="input-des">Default Gateway</div>
+						<div class="input-item">
+							<input type="text" id="wifi_gateway" disabled value="0.0.0.0" />
+						</div>
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setWifiData()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="net">
+				<h2 class="input-box-til">SoftAP</h2>
+				<div class="input-box">
+					<div class="input-des">State</div>
+					<div class="input-item"><span class="ind" id="apState">—</span></div>
+				</div>
+				<div class="input-box" id="apNoteBox" style="display:none">
+					<div class="input-des">Note</div>
+					<div class="input-item" id="apNote"></div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">SSID</div>
+					<div class="input-item" id="apSsid">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Address</div>
+					<div class="input-item" id="apAddr">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Clients connected</div>
+					<div class="input-item" id="apClients">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">IPs leased</div>
+					<div class="input-item" id="apLeases">—</div>
+				</div>
+				<div class="input-box">
+					<div class="input-des">Log</div>
+					<div class="input-item"><pre id="apLog">—</pre></div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" id="apToggle" data-on="1" onclick="setApNow()">Turn off</button>
+				</div>
+				<p class="pwd-des" style="margin: 0 24px 12px;">Turn off takes effect immediately while the camera is on the router, and that choice is kept across reboot. If the router link drops, SoftAP comes back on its own. Join through the router before turning it off, or this page drops.</p>
+			</section>
+			<section class="content-box" data-tone="warn">
+				<h2 class="input-box-til">Device access point</h2>
+				<div class="input-box">
+					<div class="input-des">Device AP Auto OFF</div>
+					<div class="input-item" id="apAutoBox">
+						<input type="checkbox" id="apAuto" />
+						<label for="apAuto">
+							When the device is connected to the router, SoftAP
+							(<span id="apName">HP10</span>)
+							shuts down 5 minutes later. It comes back if that link drops.
+						</label>
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setApAuto()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="err">
+				<h2 class="input-box-til">Login &amp; AP password</h2>
+				<div class="input-box" style="align-items: flex-start;">
+					<div class="input-des">Login &amp; AP Password</div>
+					<div class="input-item flex-no">
+						<div>
+							<input type="password" id="APpwd" value="" maxlength="63" />
+							<label class="pwd-label"><input type="checkbox" autocomplete="off"
+									onchange="wifiPwdChange(this,'APpwd')">Show password </label>
+						</div>
+						<p class="pwd-des">Empty = open SoftAP and any login. Or 8–63 letters/numbers. Changing it reboots the device.</p>
+					</div>
+				</div>
+				<div class="btn-box save-box">
+					<button type="button" class="common-btn" onclick="setApPassword()">Apply</button>
+				</div>
+			</section>
+		</div>
+	</div>
+	<div id="reboot-model">
+		<div class="reboot-txt"><span id="reboot-num"></span>&nbsp;Reboot</div>
+	</div>
+	<div class="model-wrap" id="modelWrap">
+		<div class="model-bg"></div>
+		<div class="model-content">
+			<div class="content-til" id="model-til"></div>
+			<div class="model-footer">
+				<button type="button" class="common-btn" onclick="closeModel()">Cancel</button>
+				<button type="button" class="common-btn" onclick="startRequest()">Confirm</button>
+			</div>
+		</div>
+	</div>
+</body>
+<script src="./axjs.js"></script>
+<script>
+	let loading = new Loading()
+	let modal = new Modal('content')
+	let restaringTime = 15
+	let originPwd = ''
+
+	function wifiPwdChange(_this, target) {
+		let wifiPwd = document.querySelector('#' + target)
+		wifiPwd.type = _this.checked ? 'text' : 'password'
+	}
+
+	document.querySelector('#mdns_host').addEventListener('input', function () {
+		document.querySelector('#mdns-preview').innerText = this.value.trim() || 'camera'
+	})
+
+	function setMdns() {
+		let host = document.querySelector('#mdns_host').value.trim()
+		if (!/^[A-Za-z0-9]([A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/.test(host)) {
+			toast({ txt: 'Hostname: 1–31 letters, digits, hyphen', type: 'error' })
+			return
+		}
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: { mdns_host: host },
+			success: function () {
+				toast({ txt: 'Success', type: 'success' })
+				document.querySelector('#mdns-preview').innerText = host
+			},
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
+	function getWifiData() {
+		ajax({
+			url: '/get_network_info',
+			success: function (res) {
+				document.querySelector('#ssid').value = res.ssid
+				document.querySelector('#wifi_pwd').value = baseDecode(res.wifi_pwd)
+				document.querySelector('#wifi_ip').value = res.wifi_ip
+				document.querySelector('#wifi_mask').value = res.wifi_mask
+				document.querySelector('#wifi_gateway').value = res.wifi_gateway
+				if (res.mdns_host) {
+					document.querySelector('#mdns_host').value = res.mdns_host
+					document.querySelector('#mdns-preview').innerText = res.mdns_host
+				}
+			},
+			error: function (err) {
+				if (err == 0 || err == 404)
+					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
+			}
+		})
+	}
+
+	function setWifiData() {
+		let params = {
+			ssid: document.querySelector('#ssid').value,
+			wifi_pwd: document.querySelector('#wifi_pwd').value,
+		}
+		if (params.ssid.trim() == '') {
+			toast({ txt: 'Router SSID is required', type: 'error' })
+			return
+		}
+		if (params.wifi_pwd.length != 0 && (params.wifi_pwd.length < 8 || params.wifi_pwd.length > 63)) {
+			toast({ txt: 'WiFi password length is 8-63 characters', type: 'error' })
+			return
+		}
+		params.wifi_pwd = baseCode(params.wifi_pwd)
+		loading.show('Connecting')
+		ajax({
+			method: 'post',
+			url: '/set_network_info',
+			data: params,
+			success: function (res) {
+				loading.hide()
+				if (res.status === '0')
+					toast({ txt: 'Connection successful.', type: 'success' })
+				else if (res.status === '1')
+					modal.show('SSID cannot be found. Please check the SSID is correct and is 2.4G band.')
+				else if (res.status === '2')
+					modal.show('The password is wrong. Please enter the correct password.')
+				else if (res.status === '3')
+					modal.show('Connection timeout. Please check the password is correct.')
+				else if (res.status === '4')
+					modal.show('Connection failed. Please check the password is correct.')
+				getWifiData()
+			},
+			error: function (err) {
+				toast({ txt: err, type: 'error' })
+				loading.hide()
+			}
+		})
+	}
+
+	function scanRouter() {
+		let scanBtn = document.querySelector('#scanBtn')
+		scanBtn.disabled = true
+		scanBtn.innerText = 'Scan...'
+		ajax({
+			url: '/usr_scan_ssid_list',
+			success: function (res) {
+				scanBtn.disabled = false
+				scanBtn.innerText = 'Scan Router'
+				if (res.status == '0')
+					scanRouterData(res.list)
+				else
+					toast({ txt: res.msg, type: 'error' })
+			},
+			error: function (err) {
+				scanBtn.disabled = false
+				scanBtn.innerText = 'Scan Router'
+				if (err == 0 || err == 404)
+					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
+			}
+		})
+	}
+
+	let wifiList = document.querySelector('#wifiList')
+	let ssidInput = document.querySelector('#ssid')
+	let wifiListWrap = document.querySelector('#wifiListWrap')
+
+	function scanRouterData(list) {
+		wifiList.innerHTML = ''
+		let farm = document.createDocumentFragment()
+		list.forEach(function (val, index) {
+			let wifiDom = document.createElement('div')
+			wifiDom.className = 'wifi-list-item'
+			wifiDom.setAttribute('data-idx', '' + index)
+			wifiDom.setAttribute('data-dom', 'ssid')
+			wifiDom.setAttribute('data-ssid', '' + val.ssid)
+			wifiDom.textContent = (val.auth == 0 ? '' : '🔒 ') + val.ssid
+			farm.appendChild(wifiDom)
+		})
+		wifiList.appendChild(farm)
+		wifiListWrap.style.display = 'block'
+		ssidInput.focus()
+		ssidInput.onfocus = function () { wifiListWrap.style.display = 'block' }
+		ssidInput.oninput = function () { wifiListWrap.style.display = 'none' }
+	}
+
+	wifiList.addEventListener('click', function (ev) {
+		let target = ev.target
+		while (target !== wifiList) {
+			if (target.dataset.dom && target.dataset.dom === 'ssid') {
+				ssidInput.value = target.dataset.ssid
+				wifiListWrap.style.display = 'none'
+				break
+			}
+			target = target.parentNode
+		}
+	})
+
+	function getDevice() {
+		ajax({
+			url: '/get_device_info',
+			success: function (res) {
+				document.querySelector('#apAuto').checked = res.apAuto == 1
+				if (res.mdns_host && !document.querySelector('#mdns_host').value) {
+					document.querySelector('#mdns_host').value = res.mdns_host
+					document.querySelector('#mdns-preview').innerText = res.mdns_host
+				}
+				restaringTime = res.time || 15
+			}
+		})
+	}
+
+	function paintAp(res) {
+		if (!res || res.ap_on === undefined)
+			return
+		let on = res.ap_on == 1
+		let state = document.querySelector('#apState')
+		state.textContent = on ? 'ON' : 'OFF'
+		state.className = 'ind ' + (on ? 'ok' : 'warn')
+		document.querySelector('#apSsid').textContent = res.ap_ssid || '—'
+		let name = document.querySelector('#apName')
+		if (name && res.ap_ssid)
+			name.textContent = res.ap_ssid
+		let addr = '—'
+		if (on)
+			addr = (res.ap_ip || '192.168.4.1') + (res.ap_ch ? '  channel ' + res.ap_ch : '')
+		document.querySelector('#apAddr').textContent = addr
+		let n = on ? (res.ap_clients || 0) : 0
+		document.querySelector('#apClients').textContent = n + ' connected'
+		let leases = res.ap_leases || []
+		let leaseEl = document.querySelector('#apLeases')
+		if (!on || !leases.length)
+			leaseEl.textContent = 'none'
+		else
+			leaseEl.textContent = leases.map(function (c) {
+				let ip = c.ip ? c.ip : 'waiting'
+				let rssi = (c.rssi === 0 || c.rssi) ? '  ' + c.rssi + ' dBm' : ''
+				return (c.mac || '?') + '  ' + ip + rssi
+			}).join('\n')
+		let log = res.ap_log || []
+		let logEl = document.querySelector('#apLog')
+		logEl.textContent = log.length ? log.join('\n') : '—'
+		logEl.scrollTop = logEl.scrollHeight
+		let savedOff = res.ap_hold == 0
+		let recovery = on && savedOff
+		let noteBox = document.querySelector('#apNoteBox')
+		if (recovery) {
+			noteBox.style.display = ''
+			document.querySelector('#apNote').textContent =
+				'Saved off. Up because the router link is down.'
+		} else {
+			noteBox.style.display = 'none'
+		}
+		let btn = document.querySelector('#apToggle')
+		if (!on) {
+			btn.dataset.on = '0'
+			btn.textContent = 'Turn on'
+		} else if (recovery) {
+			btn.dataset.on = '0'
+			btn.textContent = 'Keep on'
+		} else {
+			btn.dataset.on = '1'
+			btn.textContent = 'Turn off'
+		}
+	}
+
+	window.onHealth = paintAp
+
+	function refreshAp() {
+		ajax({
+			url: '/get_health',
+			success: function (res) { paintAp(res) }
+		})
+	}
+
+	function setApNow() {
+		let btn = document.querySelector('#apToggle')
+		let on = btn.dataset.on === '1'
+		btn.disabled = true
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: { apOn: on ? 0 : 1 },
+			success: function () {
+				btn.disabled = false
+				toast({
+					txt: on ? 'SoftAP off while the router link is up' : 'SoftAP on',
+					type: 'success'
+				})
+				refreshAp()
+			},
+			error: function (err) {
+				btn.disabled = false
+				toast({ txt: err, type: 'error' })
+			}
+		})
+	}
+
+	function setApAuto() {
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: { apAuto: document.querySelector('#apAuto').checked ? 1 : 0 },
+			success: function () { toast({ txt: 'Success', type: 'success' }) },
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
+	function setApPassword() {
+		let pwd = document.querySelector('#APpwd').value
+		if (pwd.trim() !== '' && originPwd === pwd) {
+			toast({ txt: 'Same as original password', type: 'error', time: 3000 })
+			return
+		}
+		if (pwd.trim() !== '' && /[^0-9a-zA-Z']/g.test(pwd)) {
+			toast({ txt: 'Password contains only numbers and letters', type: 'error' })
+			return
+		}
+		if (pwd.trim() !== '' && (8 > pwd.length || pwd.length > 63)) {
+			toast({ txt: 'It can be set to NULL or 8-63 characters.', type: 'error', time: 8000 })
+			return
+		}
+		document.querySelector('#modelWrap').style.display = 'block'
+		document.querySelector('#model-til').innerText = 'Are you sure to Reboot Device ?'
+	}
+
+	function closeModel() {
+		document.querySelector('#modelWrap').style.display = 'none'
+	}
+
+	function startRequest() {
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: { APpwd: baseCode(document.querySelector('#APpwd').value) },
+			success: function () { restaring() },
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+		document.querySelector('#modelWrap').style.display = 'none'
+	}
+
+	function restaring() {
+		document.querySelector('#reboot-model').style.display = 'block'
+		let num = parseInt(restaringTime)
+		let txtBox = document.querySelector('#reboot-num')
+		let time = setInterval(function () {
+			if (1 >= num) {
+				clearInterval(time)
+				location.href = './login.html'
+			}
+			num--
+			txtBox.innerHTML = num + ' s'
+		}, 1000)
+	}
+
+	getWifiData()
+	getDevice()
+	refreshAp()
+	setInterval(refreshAp, 3000)
+</script>
+</html>
