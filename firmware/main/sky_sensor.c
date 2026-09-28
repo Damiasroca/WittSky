@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "sky_awb.h"
 #include "sky_cfg.h"
 #include "sky_sensor.h"
 
@@ -14,9 +15,6 @@ static const char *TAG = "sky";
 #define REG_REG04 0x104
 #define REG_AEC   0x110
 #define REG_REG45 0x145
-#define REG_AWB_R 0x0CC
-#define REG_AWB_G 0x0CD
-#define REG_AWB_B 0x0CE
 
 static double gain_multiplier(int reg)
 {
@@ -66,13 +64,8 @@ void sky_sensor_read(double luma, sky_sensor_t *out)
         out->light_idx = log2(luma / ((double)out->aec * out->gain_x));
     }
 
-    if (out->awb_mode == 0)
-        return;
-
-    int r = read_reg(s, REG_AWB_R, 0xFF);
-    int g = read_reg(s, REG_AWB_G, 0xFF);
-    int b = read_reg(s, REG_AWB_B, 0xFF);
-    if (r < 0 || g < 0 || b < 0)
+    int r = 0, g = 0, b = 0;
+    if (!hp10_sky_awb_applied(&r, &g, &b))
         return;
     out->gains_ok = true;
     out->awb_r = r;

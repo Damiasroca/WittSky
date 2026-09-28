@@ -5,6 +5,7 @@
 
 #include "cam_cfg.h"
 #include "hp10_bringup.h"
+#include "overlay_cfg.h"
 #include "sky_cfg.h"
 #include "upload_priv.h"
 
@@ -14,7 +15,8 @@ bool    g_upload_en;
 bool    g_ecowitt_en;
 char    g_upload_url[HP10_UPLOAD_URL_MAX];
 uint8_t g_ost_interval = 1;
-char    g_ota_url[HP10_UPLOAD_URL_MAX];
+char    g_ota_url[HP10_UPLOAD_URL_MAX] = HP10_OTA_CHECK_URL;
+_Static_assert(sizeof(HP10_OTA_CHECK_URL) <= HP10_UPLOAD_URL_MAX, "OTA check URL longer than 127 characters");
 
 bool hp10_upload_url_ok(const char *url)
 {
@@ -57,7 +59,8 @@ void hp10_cfg_load(void)
     n = sizeof g_szStaPwd;
     nvs_get_str(h, "pwd", g_szStaPwd, &n);
     n = sizeof g_ota_url;
-    nvs_get_str(h, "ota_url", g_ota_url, &n);
+    if (nvs_get_str(h, "ota_url", g_ota_url, &n) != ESP_OK)
+        strlcpy(g_ota_url, HP10_OTA_CHECK_URL, sizeof g_ota_url);
     uint8_t wsen = 0, wslvl = 3;
     nvs_get_u8(h, "wsl_en", &wsen);
     nvs_get_u8(h, "wsl_lvl", &wslvl);
@@ -78,6 +81,7 @@ void hp10_cfg_load(void)
     nvs_get_u16(h, "wd_cap_m", &cap_m);
     hp10_sky_cfg_load(h);
     hp10_cam_cfg_load(h);
+    hp10_overlay_cfg_load(h);
     nvs_close(h);
     g_ap_auto = ap_auto != 0;
     g_ap_on = ap_on != 0;
@@ -142,6 +146,7 @@ void hp10_cfg_save(void)
     nvs_set_u16(h, "wd_cap_m", g_wd_cap_m);
     hp10_sky_cfg_save(h);
     hp10_cam_cfg_save(h);
+    hp10_overlay_cfg_save(h);
     nvs_commit(h);
     nvs_close(h);
     log_cfg("nvs save");

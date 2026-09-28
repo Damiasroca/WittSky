@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esp_camera.h"
+#include "version.h"
 
 /*
  * HP10 / HP10X GPIO recovered from ESP32_HP10_V1.1.1.elf
@@ -44,10 +45,6 @@
 
 #define HP10_AP_CHANNEL         4
 #define HP10_AP_MAX_CONN        4
-/* Canonical string is firmware/version.txt (ESP-IDF PROJECT_VER). */
-#ifndef HP10_VERSION
-#define HP10_VERSION            "WittSky_1.0.0"
-#endif
 #define HP10_HTTP_PORT          80
 #define HP10_STREAM_PORT        81
 #define HP10_WS_LOG_PORT        82

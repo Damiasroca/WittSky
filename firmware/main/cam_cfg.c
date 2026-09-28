@@ -7,6 +7,7 @@
 #include "cam_cfg.h"
 #include "hp10_bringup.h"
 #include "pins.h"
+#include "sky_awb.h"
 
 static const char *TAG = "cam";
 
@@ -149,6 +150,7 @@ void hp10_cam_cfg_apply(void)
     set_level(s, s->set_vflip, s_vflip, "v_flip");
     ESP_LOGI(TAG, "apply fs=%d bri=%d con=%d sat=%d hm=%d vf=%d",
              fs, s_brightness, s_contrast, s_saturation, s_hmirror, s_vflip);
+    hp10_sky_awb_apply();
 }
 
 void hp10_cam_cfg_apply_locked(void)

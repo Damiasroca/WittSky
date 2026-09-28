@@ -5,39 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>System</title>
 	<link rel="stylesheet" href="./axcss.css">
-	<style type="text/css">
-		.version-box { padding-top: 10px; width: 260px; white-space: pre-wrap; line-height: 1.5em; }
-		.version-btn { width: 200px; margin: 0; }
-		.current-version-box { align-items: flex-start; }
-		.new-version { position: relative; }
-		.new-version::after {
-			content: ''; position: absolute; top: 10px; right: 10px;
-			height: 8px; width: 8px; border-radius: 50%; background-color: var(--err);
-			box-shadow: 0 0 0 3px rgba(224, 103, 95, .25);
-		}
-		#up-ver { display: none; }
-		.process-bg { position: fixed; inset: 0; background-color: transparent; }
-		#process { position: fixed; inset: 0; z-index: 80; }
-		.process-box {
-			position: absolute; width: min(460px, 92vw); min-height: 140px; top: 40%; left: 50%;
-			padding-bottom: 8px;
-			background: var(--raised); border: 1px solid var(--line);
-			border-radius: var(--radius); box-shadow: 0 18px 48px rgba(0, 0, 0, .4); z-index: 4;
-			transform: translate(-50%, -50%);
-		}
-		.process-p { font-size: 22px; font-weight: 650; color: var(--text); text-align: center; padding: 24px 0 12px; }
-		.process-flex { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 0 24px 20px; }
-		.process-txt { font-size: 15px; font-weight: 650; color: var(--text); width: 52px; text-align: right; }
-		.process-out { width: 400px; max-width: 70vw; height: 10px; background: var(--bg); border-radius: 20px; overflow: hidden; }
-		.process-in { width: 0; height: 10px; border-radius: 20px; background: var(--accent); }
-		#ws-log-box {
-			height: 220px; overflow-y: auto; background: var(--bg); color: var(--text);
-			border: 1px solid var(--line);
-			font-family: Consolas, "Courier New", monospace; font-size: 12px;
-			padding: 12px; border-radius: 10px; white-space: pre-wrap; word-break: break-all;
-		}
-		#ws-log-status { padding-bottom: 8px; font-size: 14px; font-weight: 650; }
-	</style>
 </head>
 <body>
 	<div class="wrap">
@@ -45,63 +12,112 @@
 		<div class="content" id="content">
 			<header class="page-head">
 				<h1 class="page-til">System</h1>
-				<p class="page-sub">Watchdog, live logs, firmware, and device power.</p>
+				<p class="page-sub">Look, location and clock, watchdog, live logs, firmware, security, and device power.</p>
 			</header>
+			<section class="content-box" data-tone="cam">
+				<h2 class="input-box-til">Appearance</h2>
+				<div class="fields">
+					<div class="field">
+						<label class="field-label" for="theme">Look</label>
+						<select id="theme"></select>
+						<div class="pwd-des">Stored on the camera. Original is used until you pick another.</div>
+					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="setTheme()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="ok">
+				<h2 class="input-box-til">Location &amp; time</h2>
+				<div class="tiles">
+					<div class="tile wide">
+						<div class="tile-label">Date</div>
+						<div class="tile-value" id="date">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Sunrise</div>
+						<div class="tile-value" id="sunrise">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Sunset</div>
+						<div class="tile-value" id="sunset">—</div>
+					</div>
+				</div>
+				<div class="fields">
+					<div class="field">
+						<label class="field-label" for="lat">Latitude</label>
+						<input type="number" id="lat" step="0.0001" min="-90" max="90" placeholder="48.8566" />
+					</div>
+					<div class="field">
+						<label class="field-label" for="lon">Longitude</label>
+						<input type="number" id="lon" step="0.0001" min="-180" max="180" placeholder="2.3522" />
+					</div>
+					<div class="field wide">
+						<label class="field-label" for="tz_filter">Time zone</label>
+						<input type="search" id="tz_filter" placeholder="Search city or region" autocomplete="off" />
+						<select id="tz_iana" aria-label="Time zone">
+							<option value="">Loading timezones…</option>
+						</select>
+						<div class="pwd-des">IANA tz database. DST switches automatically (last Sunday of March / October in Europe, second Sunday of March / first Sunday of November in the US, and so on).</div>
+					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="setLocation()">Apply</button>
+				</div>
+			</section>
 			<section class="content-box" data-tone="warn">
 				<h2 class="input-box-til">Watchdog</h2>
-				<div class="input-box">
-					<div class="input-des">Enable</div>
-					<div class="input-item">
-						<label><input type="checkbox" id="wd_en" /> Auto-reboot on repeated camera or upload failures</label>
+				<div class="tiles">
+					<div class="tile">
+						<div class="tile-label">Camera failures</div>
+						<div class="tile-value" id="h-camfail">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Upload failures</div>
+						<div class="tile-value" id="h-upfail">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Auto-reboots</div>
+						<div class="tile-value" id="h-cap">—</div>
+						<div class="tile-sub" id="h-cap-sub"></div>
 					</div>
 				</div>
-				<div class="input-box">
-					<div class="input-des">Camera failures</div>
-					<div class="input-item">
+				<div class="fields">
+					<div class="field wide">
+						<span class="field-label">Auto-reboot</span>
+						<label class="check"><input type="checkbox" id="wd_en" /> Reboot on repeated camera or upload failures</label>
+					</div>
+					<div class="field">
+						<label class="field-label" for="wd_cam_n">Reboot after camera failures</label>
 						<input type="number" id="wd_cam_n" min="1" max="20" value="3" />
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Upload failures</div>
-					<div class="input-item">
+					<div class="field">
+						<label class="field-label" for="wd_up_n">Reboot after upload failures</label>
 						<input type="number" id="wd_up_n" min="1" max="20" value="3" />
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Reboot cap</div>
-					<div class="input-item flex-no">
+					<div class="field">
+						<label class="field-label" for="wd_cap_n">Reboot cap</label>
 						<input type="number" id="wd_cap_n" min="1" max="20" value="3" />
 						<div class="pwd-des">Auto-reboots allowed inside the window, then stay up.</div>
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Cap window (min)</div>
-					<div class="input-item">
+					<div class="field">
+						<label class="field-label" for="wd_cap_m">Cap window (min)</label>
 						<input type="number" id="wd_cap_m" min="1" max="1440" value="60" />
 					</div>
 				</div>
-				<div class="btn-box save-box">
+				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="setWatchdog()">Apply</button>
 				</div>
 			</section>
 			<section class="content-box" data-tone="net">
-				<h2 class="input-box-til">WebSocket logs</h2>
-				<div class="input-box">
-					<div class="input-des">Enable</div>
-					<div class="input-item">
-						<label><input type="checkbox" id="ws_log_en" /> Stream ESP_LOG over WebSocket</label>
+				<h2 class="input-box-til">Logs</h2>
+				<div class="fields">
+					<div class="field">
+						<span class="field-label">WebSocket</span>
+						<label class="check"><input type="checkbox" id="ws_log_en" /> Stream ESP_LOG</label>
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">WebSocket URL</div>
-					<div class="input-item flex-no">
-						<input type="text" id="ws_log_url" maxlength="127" placeholder="/ws/log or ws://192.168.1.10:9000/logs" />
-						<div class="pwd-des">Path (served on port 82) or a remote ws:// / wss:// URL. Empty uses /ws/log.</div>
-					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Log level</div>
-					<div class="input-item">
+					<div class="field">
+						<label class="field-label" for="ws_log_level">Level</label>
 						<select id="ws_log_level">
 							<option value="1">Error</option>
 							<option value="2">Warning</option>
@@ -110,52 +126,67 @@
 							<option value="5">Verbose</option>
 						</select>
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Live log</div>
-					<div class="input-item flex-no">
-						<div id="ws-log-status" class="ind">off</div>
-						<div id="ws-log-box"></div>
+					<div class="field wide">
+						<label class="field-label" for="ws_log_url">WebSocket URL</label>
+						<input type="text" id="ws_log_url" maxlength="127" placeholder="/ws/log or ws://192.168.1.10:9000/logs" />
+						<div class="pwd-des">Path (served on port 82) or a remote ws:// / wss:// URL. Empty uses /ws/log.</div>
 					</div>
 				</div>
-				<div class="btn-box save-box">
+				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="setWsLog()">Apply</button>
+				</div>
+				<div class="log-wrap">
+					<div id="ws-log-status" class="ind">off</div>
+					<div id="ws-log-box"></div>
 				</div>
 			</section>
 			<section class="content-box" data-tone="cam">
 				<h2 class="input-box-til">Firmware</h2>
-				<div class="input-box">
-					<div class="input-des">Upgrade</div>
-					<div class="input-item">
-						<input type="checkbox" id="upgrade" />
-						<label for="upgrade">Automatically upgrade firmware</label>
+				<div class="fields">
+					<div class="field">
+						<span class="field-label">Upgrade</span>
+						<label class="check"><input type="checkbox" id="upgrade" /> Automatically upgrade firmware</label>
+					</div>
+					<div class="field wide">
+						<label class="field-label" for="ota_url">OTA URL</label>
+						<input type="text" id="ota_url" maxlength="127" placeholder="https://raw.githubusercontent.com/Damiasroca/WittSky/main/ota.json" />
+						<div class="pwd-des">Empty disables OTA. The camera checks this URL every 24 hours. JSON must include code, data.version, data.attach1file.</div>
 					</div>
 				</div>
-				<div class="input-box">
-					<div class="input-des">OTA URL</div>
-					<div class="input-item">
-						<input type="text" id="ota_url" maxlength="127" placeholder="http://192.168.0.10/version.json" />
-						<div class="pwd-des">Empty disables OTA. JSON must include code, data.version, data.attach1file.</div>
-					</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="setUpgrade()">Apply</button>
 				</div>
-				<div class="input-box">
-					<div class="input-des">Version</div>
-					<div class="input-item current-version-box">
+				<div class="fields">
+					<div class="field wide">
+						<span class="field-label">Version</span>
 						<div class="version-box" id="current-version"></div>
-						<button type="button" id="check-ver" class="common-btn version-btn" onclick="checkVersion()">Check firmware</button>
-						<button type="button" id="up-ver" class="common-btn version-btn" onclick="upVersion()">Upgrade Version</button>
+						<div class="btn-row">
+							<button type="button" id="check-ver" class="common-btn version-btn" onclick="checkVersion()">Check firmware</button>
+							<button type="button" id="up-ver" class="common-btn version-btn" onclick="upVersion()">Upgrade Version</button>
+						</div>
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Flash from PC</div>
-					<div class="input-item">
-						<input type="file" id="fw_file" accept=".bin,application/octet-stream" />
-						<button type="button" class="common-btn version-btn" onclick="flashFromPc()">Flash file</button>
+					<div class="field wide">
+						<label class="field-label" for="fw_file">Flash from PC</label>
+						<div class="btn-row">
+							<input type="file" id="fw_file" accept=".bin,application/octet-stream" />
+							<button type="button" class="common-btn version-btn" onclick="flashFromPc()">Flash file</button>
+						</div>
 						<div class="pwd-des">App .bin only (hp10_bringup.bin or a dumped ota slot). Not an ELF and not a full 4MB dump.</div>
 					</div>
 				</div>
-				<div class="btn-box save-box">
-					<button type="button" class="common-btn" onclick="setUpgrade()">Apply</button>
+			</section>
+			<section class="content-box" data-tone="err">
+				<h2 class="input-box-til">Security</h2>
+				<div class="fields">
+					<div class="field wide">
+						<label class="field-label" for="APpwd">Login &amp; AP password</label>
+						<input type="password" id="APpwd" value="" maxlength="63" />
+						<label class="pwd-label"><input type="checkbox" autocomplete="off" onchange="togglePwd(this, 'APpwd')">Show password</label>
+						<div class="pwd-des">Empty = open SoftAP and any login. Or 8–63 letters/numbers. Changing it reboots the device.</div>
+					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="setApPassword()">Apply</button>
 				</div>
 			</section>
 			<section class="content-box" data-tone="err">
@@ -167,24 +198,10 @@
 			</section>
 		</div>
 	</div>
-	<div id="reboot-model">
-		<div class="reboot-txt"><span id="reboot-num"></span>&nbsp;Reboot</div>
-	</div>
-	<div class="model-wrap" id="modelWrap">
-		<div class="model-bg"></div>
-		<div class="model-content">
-			<div class="content-til" id="model-til"></div>
-			<div class="model-footer">
-				<button type="button" class="common-btn" onclick="closeModel()">Cancel</button>
-				<button type="button" class="common-btn" onclick="startRequest()">Confirm</button>
-			</div>
-		</div>
-	</div>
 </body>
 <script src="./axjs.js"></script>
 <script>
 	let loading = new Loading()
-	let restoreStr = ''
 	let restaringTime = 15
 	let upgradeKey = 'check'
 	let noSize = false
@@ -227,8 +244,21 @@
 				wd_cap_n: document.querySelector('#wd_cap_n').value,
 				wd_cap_m: document.querySelector('#wd_cap_m').value
 			},
-			success: function () { toast({ txt: 'Success', type: 'success' }) },
+			success: function () {
+				toast({ txt: 'Success', type: 'success' })
+				pollHealth()
+			},
 			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
+	function pollHealth() {
+		ajax({
+			url: '/get_health',
+			success: function (res) {
+				if (res)
+					paintWatchdog(res)
+			}
 		})
 	}
 
@@ -242,15 +272,141 @@
 		})
 	}
 
-	function getWs() {
+	function getWs(fill) {
 		ajax({
 			url: '/get_ws_settings',
+			success: fill,
+			error: function (err) {
+				if (err == 0 || err == 404)
+					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
+			}
+		})
+	}
+
+	function fillWsLog(res) {
+		document.querySelector('#ws_log_en').checked = res.ws_log_en == 1
+		document.querySelector('#ws_log_url').value = res.ws_log_url || ''
+		if (res.ws_log_level)
+			document.querySelector('#ws_log_level').value = String(res.ws_log_level)
+		wsLogConnect(res)
+	}
+
+	let tzZones = []
+	let tzReady = false
+
+	function browserTz() {
+		try {
+			return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+		} catch (e) {
+			return ''
+		}
+	}
+
+	function fillTzSelect(selected) {
+		let sel = document.querySelector('#tz_iana')
+		let filter = (document.querySelector('#tz_filter').value || '').trim().toLowerCase()
+		sel.innerHTML = ''
+		let groups = {}
+		tzZones.forEach(function (z) {
+			if (filter && z.toLowerCase().indexOf(filter) < 0)
+				return
+			let g = z.indexOf('/') >= 0 ? z.split('/')[0] : 'Other'
+			if (!groups[g]) groups[g] = []
+			groups[g].push(z)
+		})
+		let keys = Object.keys(groups)
+		if (!keys.length) {
+			let o = document.createElement('option')
+			o.value = ''
+			o.textContent = 'No matches'
+			sel.appendChild(o)
+			return
+		}
+		keys.forEach(function (g) {
+			let og = document.createElement('optgroup')
+			og.label = g
+			groups[g].forEach(function (z) {
+				let o = document.createElement('option')
+				o.value = z
+				o.textContent = z.replace(g + '/', '')
+				if (z === selected) o.selected = true
+				og.appendChild(o)
+			})
+			sel.appendChild(og)
+		})
+		if (selected && sel.value !== selected) {
+			let o = document.createElement('option')
+			o.value = selected
+			o.textContent = selected
+			o.selected = true
+			sel.insertBefore(o, sel.firstChild)
+		}
+	}
+
+	function loadTimezones(selected) {
+		ajax({
+			url: '/get_timezones',
 			success: function (res) {
-				document.querySelector('#ws_log_en').checked = res.ws_log_en == 1
-				document.querySelector('#ws_log_url').value = res.ws_log_url || ''
-				if (res.ws_log_level)
-					document.querySelector('#ws_log_level').value = String(res.ws_log_level)
-				wsLogConnect(res)
+				tzZones = (res && res.zones) ? res.zones : []
+				tzReady = true
+				let pick = selected || browserTz()
+				if (pick && tzZones.indexOf(pick) < 0)
+					pick = selected || ''
+				fillTzSelect(pick)
+			},
+			error: function () {
+				document.querySelector('#tz_iana').innerHTML = '<option value="">Could not load timezones</option>'
+			}
+		})
+	}
+
+	document.querySelector('#tz_filter').addEventListener('input', function () {
+		fillTzSelect(document.querySelector('#tz_iana').value)
+	})
+
+	function fillLocation(res) {
+		setTile('#date', res.date || '—')
+		setTile('#sunrise', res.sunrise || '—')
+		setTile('#sunset', res.sunset || '—')
+		document.querySelector('#lat').value = (res.lat === null || res.lat === undefined) ? '' : res.lat
+		document.querySelector('#lon').value = (res.lon === null || res.lon === undefined) ? '' : res.lon
+		if (tzReady)
+			fillTzSelect(res.tz_iana || '')
+		else
+			loadTimezones(res.tz_iana || '')
+	}
+
+	function setLocation() {
+		let lat = document.querySelector('#lat').value.trim()
+		let lon = document.querySelector('#lon').value.trim()
+		let tz = document.querySelector('#tz_iana').value.trim()
+		if ((lat === '') !== (lon === '')) {
+			toast({ txt: 'Latitude and longitude are both required', type: 'error' })
+			return
+		}
+		if (!tz) {
+			toast({ txt: 'Select a time zone', type: 'error' })
+			return
+		}
+		let data = { tz_iana: tz }
+		if (lat !== '') {
+			data.lat = Number(lat)
+			data.lon = Number(lon)
+		}
+		ajax({
+			method: 'post',
+			url: '/set_ws_settings',
+			data: data,
+			success: function (res) {
+				if (res && res.status == '0') {
+					toast({ txt: res.msg || 'Failed', type: 'error' })
+					return
+				}
+				toast({ txt: 'Success', type: 'success' })
+				getWs(fillLocation)
+			},
+			error: function (err) {
+				toast({ txt: err, type: 'error' })
 			}
 		})
 	}
@@ -346,7 +502,7 @@
 					return
 				}
 				toast({ txt: 'Success', type: 'success' })
-				getWs()
+				getWs(fillWsLog)
 			},
 			error: function (err) { toast({ txt: err, type: 'error' }) }
 		})
@@ -494,49 +650,74 @@
 		})
 	}
 
+	function setApPassword() {
+		let pwd = document.querySelector('#APpwd').value
+		if (pwd.trim() !== '' && /[^0-9a-zA-Z']/g.test(pwd)) {
+			toast({ txt: 'Password contains only numbers and letters', type: 'error' })
+			return
+		}
+		if (pwd.trim() !== '' && (8 > pwd.length || pwd.length > 63)) {
+			toast({ txt: 'It can be set to NULL or 8-63 characters.', type: 'error', time: 8000 })
+			return
+		}
+		confirmReboot('Are you sure to Reboot Device ?', function () {
+			postAndReboot({ APpwd: baseCode(pwd) }, restaringTime)
+		})
+	}
+
 	function restore() {
-		document.querySelector('#modelWrap').style.display = 'block'
-		document.querySelector('#model-til').innerText = 'Are you sure to Reset Factory ?'
-		restoreStr = 'restore'
+		confirmReboot('Are you sure to Reset Factory ?', function () {
+			postAndReboot({ sysrestore: 1 }, restaringTime)
+		})
 	}
 
 	function reboot() {
-		document.querySelector('#modelWrap').style.display = 'block'
-		document.querySelector('#model-til').innerText = 'Are you sure to Reboot Device ?'
-		restoreStr = 'reboot'
+		confirmReboot('Are you sure to Reboot Device ?', function () {
+			postAndReboot({ sysreboot: 1 }, restaringTime)
+		})
 	}
 
-	function closeModel() {
-		document.querySelector('#modelWrap').style.display = 'none'
+	function loadThemes() {
+		ajax({
+			url: '/get_theme',
+			success: function (res) {
+				let sel = document.querySelector('#theme')
+				if (!sel || !res || !res.themes) return
+				sel.innerHTML = ''
+				res.themes.forEach(function (t) {
+					let o = document.createElement('option')
+					o.value = t.id
+					o.textContent = t.label
+					if (t.id === res.id) o.selected = true
+					sel.appendChild(o)
+				})
+			}
+		})
 	}
 
-	function startRequest() {
-		let data = restoreStr === 'restore' ? { sysrestore: 1 } : { sysreboot: 1 }
+	function setTheme() {
 		ajax({
 			method: 'post',
-			url: '/set_device_info',
-			data: data,
-			success: function () { restaring() },
+			url: '/set_theme',
+			data: { id: document.querySelector('#theme').value },
+			success: function (res) {
+				if (res && res.status == '0') {
+					toast({ txt: res.msg || 'Failed', type: 'error' })
+					return
+				}
+				location.reload()
+			},
 			error: function (err) { toast({ txt: err, type: 'error' }) }
 		})
-		document.querySelector('#modelWrap').style.display = 'none'
 	}
 
-	function restaring() {
-		document.querySelector('#reboot-model').style.display = 'block'
-		let num = parseInt(restaringTime)
-		let txtBox = document.querySelector('#reboot-num')
-		let time = setInterval(function () {
-			if (1 >= num) {
-				clearInterval(time)
-				location.href = './login.html'
-			}
-			num--
-			txtBox.innerHTML = num + ' s'
-		}, 1000)
-	}
-
+	loadThemes()
 	getDevice()
-	getWs()
+	getWs(function (res) {
+		fillLocation(res)
+		fillWsLog(res)
+	})
+	pollHealth()
+	setInterval(pollHealth, 15000)
 </script>
 </html>

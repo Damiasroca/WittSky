@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "pins.h"
+#include "sky_awb.h"
 #include "sky_json.h"
 
 static const char *TAG = "sky";
@@ -91,6 +92,7 @@ char *sky_format_json(uint16_t frame_w, uint16_t frame_h,
         cJSON_AddNullToObject(o, "light_idx");
     }
     cJSON_AddNumberToObject(o, "awb_mode", sensor->awb_mode);
+    cJSON_AddStringToObject(o, "awb_name", hp10_sky_awb_label());
     add_gains(o, sensor);
     int bri = 0, con = 0, sat = 0, fx = 0;
     image_levels(&bri, &con, &sat, &fx);

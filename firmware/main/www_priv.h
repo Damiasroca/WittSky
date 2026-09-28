@@ -13,3 +13,4 @@ void register_post(httpd_handle_t h, const char *uri, esp_err_t (*fn)(httpd_req_
 
 void www_api_register(httpd_handle_t http, httpd_handle_t stream);
 void www_sky_register(httpd_handle_t http);
+void www_overlay_register(httpd_handle_t http);

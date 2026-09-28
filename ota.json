@@ -1,0 +1,8 @@
+{
+  "code": 0,
+  "data": {
+    "version": "WittSky_1.0.2",
+    "content": "Weather overlay on stills, settled exposure after boot, and Ecowitt cloud fetch.",
+    "attach1file": "https://raw.githubusercontent.com/Damiasroca/WittSky/main/WittSky_1.0.2.bin"
+  }
+}

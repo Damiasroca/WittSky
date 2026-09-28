@@ -12,6 +12,8 @@ extern "C" {
 #endif
 
 #define HP10_UPLOAD_URL_MAX 128
+/* Version check. The JSON's attach1file is the release .bin (followed across GitHub's redirect). */
+#define HP10_OTA_CHECK_URL "https://raw.githubusercontent.com/Damiasroca/WittSky/main/ota.json"
 
 extern uint8_t      g_abStaMac[6];
 extern bool         g_bLoggedIn;
@@ -87,6 +89,7 @@ void      hp10_ws_log_status(char *buf, size_t n);
 
 bool      hp10_ota_url_ok(const char *url);
 int       hp10_ota_check(void);
+void      hp10_ota_poll_start(void);
 int       hp10_ota_start(void);
 unsigned  hp10_ota_pct(void);
 bool      hp10_ota_busy(void);

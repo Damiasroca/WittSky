@@ -12,11 +12,13 @@
 #include "esp_system.h"
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "hp10_bringup.h"
 #include "pins.h"
@@ -25,6 +27,9 @@ static const char *TAG = "ota";
 
 #define FW_URL_MAX 256
 #define RESP_CAP   2048
+#define OTA_POLL_OK_MS   (24u * 60u * 60u * 1000u)
+#define OTA_POLL_FAIL_MS (30u * 60u * 1000u)
+#define OTA_POLL_WAIT_MS (30u * 1000u)
 
 typedef struct {
     char   *buf;
@@ -45,6 +50,23 @@ static volatile uint32_t s_total;
 static esp_ota_handle_t s_local;
 static const esp_partition_t *s_part;
 static bool s_hdr_ok;
+static SemaphoreHandle_t s_mu;
+static char s_save_url[FW_URL_MAX];
+static char s_save_ver[32];
+static char s_save_notes[256];
+static char s_save_msg[320];
+
+static void ota_lock(void)
+{
+    if (s_mu)
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+}
+
+static void ota_unlock(void)
+{
+    if (s_mu)
+        xSemaphoreGive(s_mu);
+}
 
 bool hp10_ota_url_ok(const char *url)
 {
@@ -118,7 +140,7 @@ static int json_code(cJSON *code)
     return -1;
 }
 
-int hp10_ota_check(void)
+static int ota_check_impl(void)
 {
     s_has_update = false;
     s_fw_url[0] = 0;
@@ -147,6 +169,8 @@ int hp10_ota_check(void)
         .crt_bundle_attach = https ? esp_crt_bundle_attach : NULL,
         .event_handler = http_evt,
         .user_data = &acc,
+        .buffer_size = 2048,
+        .buffer_size_tx = 2048,
     };
     esp_http_client_handle_t cli = esp_http_client_init(&cfg);
     if (!cli) {
@@ -206,15 +230,102 @@ int hp10_ota_check(void)
     return 1;
 }
 
+static void offer_save(void)
+{
+    memcpy(s_save_url, s_fw_url, sizeof s_save_url);
+    memcpy(s_save_ver, s_ver, sizeof s_save_ver);
+    memcpy(s_save_notes, s_notes, sizeof s_save_notes);
+    memcpy(s_save_msg, s_msg, sizeof s_save_msg);
+}
+
+static void offer_restore(void)
+{
+    memcpy(s_fw_url, s_save_url, sizeof s_fw_url);
+    memcpy(s_ver, s_save_ver, sizeof s_ver);
+    memcpy(s_notes, s_save_notes, sizeof s_notes);
+    memcpy(s_msg, s_save_msg, sizeof s_msg);
+    s_has_update = true;
+}
+
+static int ota_check_guarded(bool keep_offer)
+{
+    ota_lock();
+    if (s_busy) {
+        ota_unlock();
+        return -1;
+    }
+    bool had = keep_offer && s_has_update;
+    if (had)
+        offer_save();
+    int rc = ota_check_impl();
+    if (rc < 0 && had)
+        offer_restore();
+    ota_unlock();
+    return rc;
+}
+
+int hp10_ota_check(void)
+{
+    return ota_check_guarded(false);
+}
+
+static bool ota_poll_due(void)
+{
+    if (s_busy || !hp10_ota_url_ok(g_ota_url) || !hp10_sta_has_ip())
+        return false;
+    if (strncmp(g_ota_url, "https://", 8) == 0) {
+        time_t now = 0;
+        time(&now);
+        if (now < 1600000000)
+            return false;
+    }
+    return true;
+}
+
+static void delay_ms(uint32_t ms)
+{
+    /* pdMS_TO_TICKS(24h) overflows a 32-bit tick count at 100 Hz. */
+    while (ms) {
+        uint32_t step = ms > 60000u ? 60000u : ms;
+        vTaskDelay(pdMS_TO_TICKS(step));
+        ms -= step;
+    }
+}
+
+static void ota_poll_task(void *arg)
+{
+    (void)arg;
+    ESP_LOGI(TAG, "OTA poll every 24h");
+    for (;;) {
+        while (!ota_poll_due())
+            vTaskDelay(pdMS_TO_TICKS(OTA_POLL_WAIT_MS));
+        int rc = ota_check_guarded(true);
+        if (rc < 0)
+            ESP_LOGW(TAG, "periodic check failed, retry in 30 min");
+        delay_ms(rc < 0 ? OTA_POLL_FAIL_MS : OTA_POLL_OK_MS);
+    }
+}
+
+void hp10_ota_poll_start(void)
+{
+    if (!s_mu)
+        s_mu = xSemaphoreCreateMutex();
+    xTaskCreate(ota_poll_task, "ota_poll", 12288, NULL, 3, NULL);
+}
+
 static void ota_task(void *arg)
 {
     (void)arg;
     bool https = strncmp(s_fw_url, "https://", 8) == 0;
+    /* GitHub release URLs 302 to a signed link of about 900 bytes.
+       The default 512-byte client buffer cannot send that request. */
     esp_http_client_config_t http = {
         .url = s_fw_url,
         .timeout_ms = 60000,
         .crt_bundle_attach = https ? esp_crt_bundle_attach : NULL,
         .keep_alive_enable = true,
+        .buffer_size = 2048,
+        .buffer_size_tx = 2048,
     };
     esp_https_ota_config_t cfg = { .http_config = &http };
     esp_https_ota_handle_t h = NULL;
@@ -273,17 +384,21 @@ static void ota_task(void *arg)
 
 int hp10_ota_start(void)
 {
-    if (s_busy)
+    ota_lock();
+    if (s_busy) {
+        ota_unlock();
         return 0;
-    if (!s_has_update || !s_fw_url[0])
+    }
+    if (!s_has_update || !s_fw_url[0] || !hp10_sta_has_ip()) {
+        ota_unlock();
         return -1;
-    if (!hp10_sta_has_ip())
-        return -1;
+    }
     s_fail = false;
     s_ok = false;
     s_done = 0;
     s_total = 0;
     s_busy = true;
+    ota_unlock();
     if (xTaskCreate(ota_task, "http_ota", 10240, NULL, 7, NULL) != pdPASS) {
         s_busy = false;
         return 0;
@@ -305,17 +420,21 @@ void hp10_ota_reboot_soon(void)
 
 esp_err_t hp10_ota_local_begin(size_t total)
 {
+    ota_lock();
     if (s_busy) {
         snprintf(s_msg, sizeof s_msg, "upgrade task is going on...");
+        ota_unlock();
         return ESP_ERR_INVALID_STATE;
     }
     s_part = esp_ota_get_next_update_partition(NULL);
     if (!s_part) {
         snprintf(s_msg, sizeof s_msg, "No OTA slot");
+        ota_unlock();
         return ESP_FAIL;
     }
     if (total < 0x200 || total > s_part->size) {
         snprintf(s_msg, sizeof s_msg, "Bad firmware size");
+        ota_unlock();
         return ESP_ERR_INVALID_SIZE;
     }
     s_fail = false;
@@ -326,6 +445,7 @@ esp_err_t hp10_ota_local_begin(size_t total)
     s_hdr_ok = false;
     s_busy = true;
     snprintf(s_msg, sizeof s_msg, "Flashing from PC");
+    ota_unlock();
     return ESP_OK;
 }
 

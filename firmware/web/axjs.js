@@ -1,6 +1,4 @@
-sidebar();
-
-const ajax = function (option) {
+function ajax(option) {
   let init = {
     method: "GET",
     url: "",
@@ -72,11 +70,12 @@ function removeError(_this) {
 function sidebar() {
   if (!document.querySelector("#sidebar")) return;
   document.querySelector("#sidebar").innerHTML = `
-        <a class="sidebar-a" href="./status.html">Status</a>
-        <a class="sidebar-a" href="./localNetwork.html">Network</a>
-        <a class="sidebar-a" href="./capture.html">Capture</a>
-        <a class="sidebar-a" href="./skystats.html">Sky</a>
+        <a class="sidebar-a" href="./status.html">Overview</a>
         <a class="sidebar-a" href="./video.html">Camera</a>
+        <a class="sidebar-a" href="./skystats.html">Sky</a>
+        <a class="sidebar-a" href="./capture.html">Uploads</a>
+        <a class="sidebar-a" href="./overlay.html">Overlay</a>
+        <a class="sidebar-a" href="./localNetwork.html">Network</a>
         <a class="sidebar-a" href="./system.html">System</a>
 			`;
   let here = (location.pathname.split("/").pop() || "").toLowerCase();
@@ -92,6 +91,43 @@ function sidebar() {
         `<p id="sidebar-version">${localStorage.getItem("version")}</p>`
       );
   }
+  function paintOta(res) {
+    let sys = document.querySelector('#sidebar a[href="./system.html"]');
+    let ver = document.querySelector("#sidebar-version");
+    if (!res || res.newVersion != 1) {
+      localStorage.removeItem("newVersion");
+      if (sys) sys.classList.remove("new-version-sidebar");
+      if (ver) {
+        let old = ver.querySelector(".ota-note");
+        if (old) {
+          if (old.previousSibling && old.previousSibling.nodeName === "BR")
+            old.previousSibling.remove();
+          old.remove();
+        }
+      }
+      return;
+    }
+    localStorage.setItem("newVersion", "1");
+    if (sys) sys.classList.add("new-version-sidebar");
+    if (!ver) {
+      document
+        .querySelector("#sidebar")
+        .insertAdjacentHTML("beforeend", '<p id="sidebar-version"></p>');
+      ver = document.querySelector("#sidebar-version");
+    }
+    if (ver.querySelector(".ota-note")) return;
+    let note = document.createElement("span");
+    note.className = "ota-note";
+    note.textContent = "New firmware. Open System to install.";
+    if (ver.textContent) ver.appendChild(document.createElement("br"));
+    ver.appendChild(note);
+  }
+  setTimeout(function () {
+    ajax({ url: "/get_version", success: paintOta });
+    setInterval(function () {
+      ajax({ url: "/get_version", success: paintOta });
+    }, 60000);
+  }, 0);
 }
 
 function fmtUptime(s) {
@@ -123,71 +159,131 @@ function fmtBytes(n) {
   return n + " B";
 }
 
-function healthUploadText(res) {
-  if (!res || res.last_upload_age_s < 0) return "never";
-  let st = res.last_upload_ok == 1 ? "ok" : "fail";
-  let msg = res.last_upload_msg ? " — " + res.last_upload_msg : "";
-  return fmtAge(res.last_upload_age_s) + " " + st + msg;
+function setTile(sel, text, tone) {
+  let el = document.querySelector(sel);
+  el.textContent = text;
+  el.className = tone ? "tile-value " + tone : "tile-value";
 }
 
-function fillHealthStrip(res) {
-  let el = document.querySelector("#status-strip");
-  if (!el || !res) return;
-  let rssi =
-    res.rssi === null || res.rssi === undefined
-      ? "—"
-      : res.rssi + " dBm (" + (res.rssi_label || "") + ")";
-  let up = healthUploadText(res);
-  let camOk = res.camera_ok == 1;
-  let rssiEl = el.querySelector("#strip-rssi");
-  rssiEl.innerText = rssi;
-  let rssiTone = "err";
-  if (res.rssi_label === "good") rssiTone = "ok";
-  else if (res.rssi_label === "fair") rssiTone = "warn";
-  else if (res.rssi === null || res.rssi === undefined) rssiTone = "err";
-  rssiEl.className = rssiTone;
-  el.querySelector("#strip-up").innerText = fmtUptime(res.uptime_s);
-  let upEl = el.querySelector("#strip-upload");
-  upEl.innerText = up;
-  upEl.className = res.last_upload_age_s < 0 ? "" : res.last_upload_ok == 1 ? "ok" : "err";
-  let camEl = el.querySelector("#strip-cam");
-  camEl.innerText = camOk ? "ok" : "down";
-  camEl.className = camOk ? "ok" : "err";
+function setSub(sel, text) {
+  document.querySelector(sel).textContent = text || "";
 }
 
-function statusStrip() {
-  if (!document.querySelector("#sidebar")) return;
-  if (document.querySelector("#status-strip")) return;
-  let content = document.querySelector("#content");
-  if (!content) return;
-  let el = document.createElement("div");
-  el.id = "status-strip";
-  el.className = "status-strip";
-  el.style.display = "none";
-  el.innerHTML =
-    '<span>RSSI <b id="strip-rssi">—</b></span>' +
-    '<span>Up <b id="strip-up">—</b></span>' +
-    '<span>Upload <b id="strip-upload">—</b></span>' +
-    '<span>Camera <b id="strip-cam">—</b></span>';
-  content.insertBefore(el, content.firstChild);
-  function poll() {
-    ajax({
-      url: "/get_health",
-      success: function (res) {
-        el.style.display = "flex";
-        fillHealthStrip(res);
-        if (typeof window.onHealth === "function") window.onHealth(res);
-      },
-      error: function (err) {
-        if (err == 401) el.style.display = "none";
-      },
-    });
+function makeTile(label, value, tone, sub) {
+  let t = document.createElement("div");
+  t.className = "tile";
+  let l = document.createElement("div");
+  l.className = "tile-label";
+  l.textContent = label;
+  let v = document.createElement("div");
+  v.className = tone ? "tile-value " + tone : "tile-value";
+  if (value && value.nodeType) v.appendChild(value);
+  else v.textContent = value;
+  t.appendChild(l);
+  t.appendChild(v);
+  if (sub) {
+    let d = document.createElement("div");
+    d.className = "tile-sub";
+    d.textContent = sub;
+    t.appendChild(d);
   }
-  setTimeout(poll, 0);
-  setInterval(poll, 15000);
+  return t;
 }
 
-statusStrip();
+function streakTone(n, max) {
+  if (max && n >= max) return "err";
+  if (n) return "warn";
+  return "ok";
+}
+
+function paintWatchdog(res) {
+  let camFail = res.cam_fail || 0;
+  let upFail = res.up_fail || 0;
+  setTile("#h-camfail", camFail + " / " + (res.wd_cam_n || 0), streakTone(camFail, res.wd_cam_n));
+  setTile("#h-upfail", upFail + " / " + (res.wd_up_n || 0), streakTone(upFail, res.wd_up_n));
+  let reboots = res.wd_reboots || 0;
+  let sub = "in " + (res.wd_cap_m || 0) + " min";
+  let tone = "ok";
+  if (res.wd_held_off == 1) {
+    sub += " (holding — staying up)";
+    tone = "warn";
+  }
+  if (res.wd_en != 1) {
+    sub += " (watchdog off)";
+    tone = "";
+  } else if (reboots > 0 && res.wd_held_off != 1) {
+    tone = "warn";
+  }
+  setTile("#h-cap", reboots + " / " + (res.wd_cap_n || 0), tone);
+  setSub("#h-cap-sub", sub);
+}
+
+function togglePwd(cb, id) {
+  document.querySelector("#" + id).type = cb.checked ? "text" : "password";
+}
+
+function confirmReboot(title, onConfirm) {
+  let wrap = document.querySelector("#modelWrap");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.className = "model-wrap";
+    wrap.id = "modelWrap";
+    wrap.innerHTML =
+      '<div class="model-bg"></div>' +
+      '<div class="model-content">' +
+      '<div class="content-til" id="model-til"></div>' +
+      '<div class="model-footer">' +
+      '<button type="button" class="common-btn" id="model-cancel">Cancel</button>' +
+      '<button type="button" class="common-btn" id="model-ok">Confirm</button>' +
+      "</div></div>";
+    document.body.appendChild(wrap);
+    wrap.querySelector("#model-cancel").onclick = function () {
+      wrap.style.display = "none";
+    };
+  }
+  wrap.querySelector("#model-til").innerText = title;
+  wrap.querySelector("#model-ok").onclick = function () {
+    wrap.style.display = "none";
+    onConfirm();
+  };
+  wrap.style.display = "block";
+}
+
+function rebootCountdown(secs) {
+  let el = document.querySelector("#reboot-model");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "reboot-model";
+    el.innerHTML = '<div class="reboot-txt"><span id="reboot-num"></span>&nbsp;Reboot</div>';
+    document.body.appendChild(el);
+  }
+  el.style.display = "block";
+  let num = parseInt(secs) || 15;
+  let txt = el.querySelector("#reboot-num");
+  let timer = setInterval(function () {
+    if (1 >= num) {
+      clearInterval(timer);
+      location.href = "./login.html";
+    }
+    num--;
+    txt.innerHTML = num + " s";
+  }, 1000);
+}
+
+function postAndReboot(data, secs) {
+  ajax({
+    method: "post",
+    url: "/set_device_info",
+    data: data,
+    success: function () {
+      rebootCountdown(secs);
+    },
+    error: function (err) {
+      toast({ txt: err, type: "error" });
+    },
+  });
+}
+
 class Tip {
   constructor(option) {
     this.txt = option.txt;
@@ -373,3 +469,5 @@ function baseDecode(input) {
   output = utf8_decode(output);
   return output;
 }
+
+sidebar();

@@ -5,6 +5,7 @@
 #include "cJSON.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "nvs.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -30,10 +31,22 @@ extern const uint8_t system_html_start[] asm("_binary_system_html_start");
 extern const uint8_t system_html_end[]   asm("_binary_system_html_end");
 extern const uint8_t skystats_html_start[] asm("_binary_skystats_html_start");
 extern const uint8_t skystats_html_end[]   asm("_binary_skystats_html_end");
-extern const uint8_t axcss_css_start[] asm("_binary_axcss_css_start");
-extern const uint8_t axcss_css_end[]   asm("_binary_axcss_css_end");
+extern const uint8_t overlay_html_start[] asm("_binary_overlay_html_start");
+extern const uint8_t overlay_html_end[]   asm("_binary_overlay_html_end");
+extern const uint8_t theme_original_css_start[]  asm("_binary_theme_original_css_start");
+extern const uint8_t theme_original_css_end[]    asm("_binary_theme_original_css_end");
+extern const uint8_t theme_technical_css_start[] asm("_binary_theme_technical_css_start");
+extern const uint8_t theme_technical_css_end[]   asm("_binary_theme_technical_css_end");
+extern const uint8_t theme_warm_css_start[]      asm("_binary_theme_warm_css_start");
+extern const uint8_t theme_warm_css_end[]        asm("_binary_theme_warm_css_end");
 extern const uint8_t axjs_js_start[] asm("_binary_axjs_js_start");
 extern const uint8_t axjs_js_end[]   asm("_binary_axjs_js_end");
+extern const uint8_t camera_js_start[] asm("_binary_camera_js_start");
+extern const uint8_t camera_js_end[]   asm("_binary_camera_js_end");
+extern const uint8_t awb_js_start[] asm("_binary_awb_js_start");
+extern const uint8_t awb_js_end[]   asm("_binary_awb_js_end");
+extern const uint8_t skymask_js_start[] asm("_binary_skymask_js_start");
+extern const uint8_t skymask_js_end[]   asm("_binary_skymask_js_end");
 
 
 bool guest_json(httpd_req_t *req)
@@ -58,6 +71,7 @@ static esp_err_t send_blob(httpd_req_t *req, const char *type,
                            const uint8_t *start, const uint8_t *end)
 {
     httpd_resp_set_type(req, type);
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
     return httpd_resp_send(req, (const char *)start, end - start);
 }
 
@@ -145,14 +159,134 @@ static esp_err_t skystats_html_get(httpd_req_t *req)
     return send_blob(req, "text/html", skystats_html_start, skystats_html_end);
 }
 
+static esp_err_t overlay_html_get(httpd_req_t *req)
+{
+    if (guest_html(req))
+        return ESP_OK;
+    return send_blob(req, "text/html", overlay_html_start, overlay_html_end);
+}
+
+/* One row per look. To add one: embed its CSS in CMakeLists.txt and append here.
+ * An unknown or missing NVS id falls back to original. */
+static const struct {
+    const char *id;
+    const char *label;
+    const uint8_t *start;
+    const uint8_t *end;
+} s_themes[] = {
+    { "original",  "Original",     theme_original_css_start,  theme_original_css_end },
+    { "technical", "Technical",    theme_technical_css_start, theme_technical_css_end },
+    { "warm",      "Station warm", theme_warm_css_start,      theme_warm_css_end },
+};
+
+static char s_theme_id[16] = "original";
+
+static int theme_index(const char *id)
+{
+    if (!id || !id[0])
+        return -1;
+    for (size_t i = 0; i < sizeof s_themes / sizeof s_themes[0]; i++) {
+        if (strcmp(s_themes[i].id, id) == 0)
+            return (int)i;
+    }
+    return -1;
+}
+
+static void theme_load(void)
+{
+    nvs_handle_t h;
+    char buf[sizeof s_theme_id];
+    size_t n = sizeof buf;
+    if (nvs_open("hp10", NVS_READONLY, &h) != ESP_OK)
+        return;
+    if (nvs_get_str(h, "theme", buf, &n) == ESP_OK && theme_index(buf) >= 0)
+        strlcpy(s_theme_id, buf, sizeof s_theme_id);
+    nvs_close(h);
+}
+
+static void theme_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("hp10", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    nvs_set_str(h, "theme", s_theme_id);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+static int theme_active(void)
+{
+    int i = theme_index(s_theme_id);
+    if (i >= 0)
+        return i;
+    i = theme_index("original");
+    return i >= 0 ? i : 0;
+}
+
 static esp_err_t css_get(httpd_req_t *req)
 {
-    return send_blob(req, "text/css", axcss_css_start, axcss_css_end);
+    int i = theme_active();
+    return send_blob(req, "text/css", s_themes[i].start, s_themes[i].end);
+}
+
+static esp_err_t get_theme(httpd_req_t *req)
+{
+    if (guest_json(req))
+        return ESP_OK;
+    cJSON *o = cJSON_CreateObject();
+    cJSON *arr = cJSON_AddArrayToObject(o, "themes");
+    cJSON_AddStringToObject(o, "id", s_theme_id);
+    for (size_t i = 0; i < sizeof s_themes / sizeof s_themes[0]; i++) {
+        cJSON *t = cJSON_CreateObject();
+        cJSON_AddStringToObject(t, "id", s_themes[i].id);
+        cJSON_AddStringToObject(t, "label", s_themes[i].label);
+        cJSON_AddItemToArray(arr, t);
+    }
+    return send_json(req, o);
+}
+
+static esp_err_t set_theme(httpd_req_t *req)
+{
+    if (guest_json(req))
+        return ESP_OK;
+    char *body = recv_body(req);
+    cJSON *in = body ? cJSON_Parse(body) : NULL;
+    free(body);
+    cJSON *id = in ? cJSON_GetObjectItem(in, "id") : NULL;
+    int i = (id && cJSON_IsString(id)) ? theme_index(id->valuestring) : -1;
+    cJSON_Delete(in);
+    if (i < 0) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddStringToObject(o, "status", "0");
+        cJSON_AddStringToObject(o, "msg", "Unknown look");
+        return send_json(req, o);
+    }
+    strlcpy(s_theme_id, s_themes[i].id, sizeof s_theme_id);
+    theme_save();
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddStringToObject(o, "status", "1");
+    cJSON_AddStringToObject(o, "id", s_theme_id);
+    return send_json(req, o);
 }
 
 static esp_err_t js_get(httpd_req_t *req)
 {
     return send_blob(req, "application/javascript", axjs_js_start, axjs_js_end);
+}
+
+static esp_err_t camera_js_get(httpd_req_t *req)
+{
+    return send_blob(req, "application/javascript", camera_js_start, camera_js_end);
+}
+
+static esp_err_t awb_js_get(httpd_req_t *req)
+{
+    return send_blob(req, "application/javascript", awb_js_start, awb_js_end);
+}
+
+static esp_err_t skymask_js_get(httpd_req_t *req)
+{
+    return send_blob(req, "application/javascript", skymask_js_start, skymask_js_end);
 }
 
 void register_get(httpd_handle_t h, const char *uri, esp_err_t (*fn)(httpd_req_t *))
@@ -169,10 +303,11 @@ void register_post(httpd_handle_t h, const char *uri, esp_err_t (*fn)(httpd_req_
 
 void www_start(void)
 {
+    theme_load();
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.server_port = HP10_HTTP_PORT;
-    cfg.max_uri_handlers = 40;
-    cfg.stack_size = 8192;
+    cfg.max_uri_handlers = 64;
+    cfg.stack_size = 16384;
     cfg.lru_purge_enable = true;
     cfg.recv_wait_timeout = 60;
     cfg.send_wait_timeout = 60;
@@ -188,8 +323,14 @@ void www_start(void)
     register_get(http, "/capture.html", capture_html_get);
     register_get(http, "/system.html", system_html_get);
     register_get(http, "/skystats.html", skystats_html_get);
+    register_get(http, "/overlay.html", overlay_html_get);
     register_get(http, "/axcss.css", css_get);
+    register_get(http, "/get_theme", get_theme);
+    register_post(http, "/set_theme", set_theme);
     register_get(http, "/axjs.js", js_get);
+    register_get(http, "/camera.js", camera_js_get);
+    register_get(http, "/awb.js", awb_js_get);
+    register_get(http, "/skymask.js", skymask_js_get);
 
     httpd_config_t scfg = HTTPD_DEFAULT_CONFIG();
     scfg.server_port = HP10_STREAM_PORT;
@@ -202,6 +343,7 @@ void www_start(void)
     ESP_ERROR_CHECK(httpd_start(&stream, &scfg));
     www_api_register(http, stream);
     www_sky_register(http);
+    www_overlay_register(http);
 
     ESP_LOGI(TAG, "httpd :%d  stream :%d", HP10_HTTP_PORT, HP10_STREAM_PORT);
 }

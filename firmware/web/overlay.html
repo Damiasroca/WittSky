@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Overlay</title>
+	<link rel="stylesheet" href="./axcss.css">
+	<style>
+		.ov-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+			gap: 14px 18px;
+			padding: 4px 24px 8px;
+		}
+		.ov-grid .field.wide { grid-column: 1 / -1; }
+		.ov-place {
+			display: flex;
+			flex-direction: column;
+			gap: 16px;
+			padding: 0 24px 8px;
+		}
+		.ov-rows { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+		.ov-row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 12px;
+			width: 100%;
+		}
+		.ov-stage {
+			position: relative;
+			width: 100%;
+			aspect-ratio: 4 / 3;
+			border-radius: 12px;
+			overflow: hidden;
+			border: 1px solid var(--line);
+			background: linear-gradient(#9aafb8, #7f97a8 42%, #8ea4b0);
+			container-type: size;
+			touch-action: none;
+			user-select: none;
+		}
+		.ov-chip {
+			position: absolute;
+			box-sizing: border-box;
+			cursor: grab;
+			z-index: 1;
+		}
+		.ov-chip.is-off { opacity: .38; }
+		.ov-chip.is-hot { z-index: 4; outline: 2px solid #fff; outline-offset: 1px; }
+		.ov-chip:active { cursor: grabbing; }
+		.ov-lab {
+			display: flex;
+			align-items: center;
+			color: #fff;
+			background: rgba(0, 0, 0, .63);
+			font-weight: 700;
+			line-height: 1;
+			white-space: nowrap;
+			font-size: max(11px, 2.3cqh);
+			padding: .35em .55em;
+			border-radius: 2px;
+			width: max-content;
+			height: auto;
+		}
+		.ov-rose {
+			border-radius: 50%;
+			border: 1px solid rgba(255, 255, 255, .7);
+			background:
+				radial-gradient(circle, transparent 58%, rgba(255,255,255,.28) 59% 62%, transparent 63%),
+				rgba(210, 210, 210, .28);
+			color: #dc1010;
+			font-weight: 800;
+			font-size: 2.4cqh;
+			display: flex;
+			justify-content: center;
+			padding-top: 1%;
+		}
+		.ov-needle {
+			width: 0;
+			height: 0;
+			overflow: visible;
+		}
+		.ov-needle i {
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: calc(var(--nr) * .16);
+			height: calc(var(--nr) * .22);
+			transform: translate(-50%, -100%);
+			background: #1eaa37;
+			clip-path: polygon(50% 100%, 85% 0, 50% 28%, 15% 0);
+			filter: drop-shadow(0 0 0 #181818) drop-shadow(0 0 1px #181818);
+		}
+		.ov-rain {
+			display: flex;
+			align-items: flex-end;
+			justify-content: center;
+			color: #60a2d7;
+			font-size: 2.2cqh;
+			font-weight: 800;
+			background:
+				radial-gradient(circle at 30% 42%, #d0d0d0 0 28%, transparent 30%),
+				radial-gradient(circle at 58% 34%, #d0d0d0 0 34%, transparent 36%),
+				radial-gradient(circle at 78% 46%, #d0d0d0 0 22%, transparent 24%);
+		}
+		.ov-el {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 8px 10px;
+			min-width: 0;
+			padding: 12px;
+			border: 1px solid var(--line);
+			border-radius: 10px;
+			background: var(--bg);
+		}
+		.ov-el.is-hot { background: rgba(90, 180, 214, .12); }
+		.ov-name {
+			grid-column: 1 / -1;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			font-weight: 650;
+		}
+		.ov-name .check { min-height: 0; }
+		.ov-el .field-label { font-size: 12px; }
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<div id="sidebar"></div>
+		<div class="content" id="content">
+			<header class="page-head">
+				<h1 class="page-til">Overlay</h1>
+				<p class="page-sub">Burn the time and the station weather into stills and uploads. The live stream stays clean.</p>
+			</header>
+			<section class="content-box" data-tone="ok">
+				<h2 class="input-box-til">Weather</h2>
+				<div class="ov-grid">
+					<div class="field wide">
+						<span class="field-label">Overlay</span>
+						<label class="check"><input type="checkbox" id="ov_en" /> On for stills and custom uploads</label>
+					</div>
+					<div class="field wide">
+						<span class="field-label">Ecowitt.net</span>
+						<label class="check"><input type="checkbox" id="ov_clean" /> Send that upload without the overlay</label>
+					</div>
+					<div class="field">
+						<label class="field-label" for="ov_sta">Station</label>
+						<select id="ov_sta">
+							<option value="0">None</option>
+							<option value="1">Ecowitt gateway</option>
+							<option value="2">Ecowitt cloud</option>
+						</select>
+					</div>
+					<div class="field">
+						<label class="field-label" for="ov_wunit">Wind</label>
+						<select id="ov_wunit">
+							<option value="0">km/h</option>
+							<option value="1">m/s</option>
+							<option value="2">mph</option>
+							<option value="3">kn</option>
+						</select>
+					</div>
+					<div class="field">
+						<label class="field-label" for="ov_tunit">Temperature</label>
+						<select id="ov_tunit">
+							<option value="0">°C</option>
+							<option value="1">°F</option>
+						</select>
+					</div>
+					<div class="field" id="to-field">
+						<label class="field-label" for="ov_timeout">Fetch timeout (ms)</label>
+						<input type="number" id="ov_timeout" min="500" max="20000" step="100" value="8000" />
+					</div>
+					<div class="field wide" id="url-field">
+						<label class="field-label" for="ov_url">Cloud URL</label>
+						<input type="text" id="ov_url" maxlength="383" spellcheck="false" />
+						<div class="pwd-des">The real-time API address, including the application key, API key, and station MAC.</div>
+					</div>
+					<div class="field" id="host-field">
+						<label class="field-label" for="ov_host">Gateway host</label>
+						<input type="text" id="ov_host" maxlength="63" placeholder="192.168.1.50" />
+					</div>
+					<div class="field" id="port-field">
+						<label class="field-label" for="ov_port">Port</label>
+						<input type="number" id="ov_port" min="1" max="65535" value="80" />
+					</div>
+				</div>
+			</section>
+			<section class="content-box" data-tone="cam">
+				<h2 class="input-box-til">Placement</h2>
+				<p class="card-note">Drag a block on the frame. It is a 4:3 still, the same shape as 1600×1200. X and Y are thousandths of the frame from the anchor. Negative X moves left, negative Y moves up. The direction arrow rides the compass degree ring and the sample points south. Its colour runs from blue at 0 km/h through green, yellow and orange to red at 70 km/h. With the compass hidden, that mark is the centre of the circle it travels. The rain mark is only burned in while the station reports rain.</p>
+				<div class="ov-place">
+					<div class="ov-stage" id="stage">
+						<div class="ov-chip ov-rose" data-id="rs" id="chip-rs">N</div>
+						<div class="ov-chip ov-needle" data-id="nd" id="chip-nd"><i></i></div>
+						<div class="ov-chip ov-rain" data-id="rn" id="chip-rn"></div>
+						<div class="ov-chip ov-lab" data-id="ts" id="chip-ts"></div>
+						<div class="ov-chip ov-lab" data-id="wd" id="chip-wd"></div>
+						<div class="ov-chip ov-lab" data-id="tp" id="chip-tp"></div>
+					</div>
+					<div class="ov-rows" id="elements"></div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="setOverlay()">Apply</button>
+				</div>
+			</section>
+		</div>
+	</div>
+</body>
+<script src="./axjs.js"></script>
+<script>
+	var FW = 1600, FH = 1200
+	var ANCHORS = ['Top left', 'Top', 'Top right', 'Left', 'Right', 'Bottom left', 'Bottom', 'Bottom right']
+	var ELS = [
+		['ts', 'Timestamp', 0, 12, 10],
+		['wd', 'Wind', 2, -12, 10],
+		['tp', 'Temperature', 2, -12, 56],
+		['rn', 'Rain', 2, -12, 102],
+		['rs', 'Compass', 5, 12, -12],
+		['nd', 'Arrow', 5, 147, -192]
+	]
+	var WIND = ['23.0 km/h S', '6.4 m/s S', '14.3 mph S', '12.4 kn S']
+	var TEMP = ['27.2°C', '81.0°F']
+	var hot = 'ts'
+	var drag = null
+
+	function anchorSelect(id, value) {
+		var html = '<select id="' + id + '">'
+		ANCHORS.forEach(function (name, i) {
+			html += '<option value="' + i + '"' + (i === value ? ' selected' : '') + '>' + name + '</option>'
+		})
+		return html + '</select>'
+	}
+
+	function elCard(el) {
+		return '<div class="ov-el" data-id="' + el[0] + '">' +
+			'<div class="ov-name"><span>' + el[1] + '</span>' +
+			'<label class="check"><input type="checkbox" id="el_' + el[0] + '_en" checked /> Show</label></div>' +
+			'<div class="field" style="grid-column:1 / -1"><label class="field-label" for="el_' + el[0] + '_an">Anchor</label>' +
+			anchorSelect('el_' + el[0] + '_an', el[2]) + '</div>' +
+			'<div class="field"><label class="field-label" for="el_' + el[0] + '_x">X</label>' +
+			'<input type="number" id="el_' + el[0] + '_x" min="-1000" max="1000" step="1" value="' + el[3] + '" /></div>' +
+			'<div class="field"><label class="field-label" for="el_' + el[0] + '_y">Y</label>' +
+			'<input type="number" id="el_' + el[0] + '_y" min="-1000" max="1000" step="1" value="' + el[4] + '" /></div>' +
+			'</div>'
+	}
+
+	function buildElements() {
+		var rows = [[ELS[0], ELS[1]], [ELS[2], ELS[3]], [ELS[4], ELS[5]]]
+		document.querySelector('#elements').innerHTML = rows.map(function (row) {
+			return '<div class="ov-row">' + row.map(elCard).join('') + '</div>'
+		}).join('')
+	}
+
+	function clamp(v) {
+		v = Math.round(Number(v) || 0)
+		if (v < -1000) return -1000
+		if (v > 1000) return 1000
+		return v
+	}
+
+	function readEl(id) {
+		return {
+			en: document.querySelector('#el_' + id + '_en').checked,
+			an: Number(document.querySelector('#el_' + id + '_an').value),
+			x: clamp(document.querySelector('#el_' + id + '_x').value),
+			y: clamp(document.querySelector('#el_' + id + '_y').value)
+		}
+	}
+
+	function anchorPoint(an, ox, oy) {
+		var ax = 0, ay = 0
+		if (an === 1 || an === 6) ax = FW / 2
+		else if (an === 2 || an === 4 || an === 7) ax = FW
+		if (an === 3 || an === 4) ay = FH / 2
+		else if (an === 5 || an === 6 || an === 7) ay = FH
+		return { x: ax + ox * FW / 1000, y: ay + oy * FH / 1000 }
+	}
+
+	function pinBox(an, p, bw, bh) {
+		var x = p.x, y = p.y
+		if (an === 2 || an === 4 || an === 7) x -= bw
+		else if (an === 1 || an === 6) x -= bw / 2
+		if (an === 5 || an === 6 || an === 7) y -= bh
+		else if (an === 3 || an === 4) y -= bh / 2
+		return { x: x, y: y }
+	}
+
+	function windColor(kmh) {
+		var stops = [[32, 96, 220], [30, 170, 55], [235, 200, 20], [240, 120, 20], [210, 30, 30]]
+		var x, seg, t, a, b
+		if (kmh < 0) kmh = 0
+		if (kmh >= 70) return 'rgb(' + stops[4].join(',') + ')'
+		x = kmh / 70 * 4
+		seg = Math.floor(x)
+		if (seg > 3) seg = 3
+		t = x - seg
+		a = stops[seg]
+		b = stops[seg + 1]
+		return 'rgb(' + [
+			Math.round(a[0] + (b[0] - a[0]) * t),
+			Math.round(a[1] + (b[1] - a[1]) * t),
+			Math.round(a[2] + (b[2] - a[2]) * t)
+		].join(',') + ')'
+	}
+
+	function place(id) {
+		var g = readEl(id)
+		var box, p
+		if (id === 'nd') {
+			var roseOn = readEl('rs').en
+			var side = FH * 432 / 1200
+			var ring = roseOn ? side * 36 / 100 : FH * 162 / 1000
+			var cx, cy
+			if (roseOn) {
+				var rb = place('rs')
+				cx = rb.x + rb.w / 2
+				cy = rb.y + rb.h / 2
+			} else {
+				p = anchorPoint(g.an, g.x, g.y)
+				cx = p.x
+				cy = p.y
+			}
+			return { x: cx, y: cy + ring, w: 0, h: 0, nr: ring, en: g.en }
+		}
+		if (id === 'rs') {
+			var s = FH * 432 / 1200
+			box = { w: s, h: s }
+		} else {
+			var r = Math.max(8, FH * 78 / 1200)
+			box = { w: r, h: r }
+		}
+		p = pinBox(g.an, anchorPoint(g.an, g.x, g.y), box.w, box.h)
+		return { x: p.x, y: p.y, w: box.w, h: box.h, en: g.en }
+	}
+
+	function paint() {
+		var stage = document.querySelector('#stage')
+		var sw = stage.clientWidth || 1
+		var sh = stage.clientHeight || 1
+		;['rs', 'nd', 'rn', 'ts', 'wd', 'tp'].forEach(function (id) {
+			var chip = document.querySelector('#chip-' + id)
+			var g = readEl(id)
+			chip.classList.toggle('is-off', !g.en)
+			chip.classList.toggle('is-hot', hot === id)
+			var row = document.querySelector('.ov-el[data-id="' + id + '"]')
+			if (row) row.classList.toggle('is-hot', hot === id)
+			if (id === 'nd') {
+				var b = place(id)
+				chip.style.left = (b.x / FW * 100) + '%'
+				chip.style.top = (b.y / FH * 100) + '%'
+				chip.style.width = '0'
+				chip.style.height = '0'
+				chip.style.setProperty('--nr', (b.nr / FH * 100) + 'cqh')
+				chip.querySelector('i').style.background = windColor(23)
+				return
+			}
+			if (id === 'ts' || id === 'wd' || id === 'tp') {
+				chip.textContent = id === 'ts' ? '2026-09-28 15:04:12'
+					: id === 'wd' ? (WIND[Number(document.querySelector('#ov_wunit').value)] || WIND[0])
+					: (TEMP[Number(document.querySelector('#ov_tunit').value)] || TEMP[0])
+				var bw = chip.offsetWidth / sw * FW
+				var bh = chip.offsetHeight / sh * FH
+				var pos = pinBox(g.an, anchorPoint(g.an, g.x, g.y), bw, bh)
+				chip.style.left = (pos.x / FW * 100) + '%'
+				chip.style.top = (pos.y / FH * 100) + '%'
+				return
+			}
+			var box = place(id)
+			chip.style.left = (box.x / FW * 100) + '%'
+			chip.style.top = (box.y / FH * 100) + '%'
+			chip.style.width = (box.w / FW * 100) + '%'
+			chip.style.height = (box.h / FH * 100) + '%'
+		})
+	}
+
+	function showSta() {
+		var sta = document.querySelector('#ov_sta').value
+		document.querySelector('#host-field').style.display = sta === '1' ? '' : 'none'
+		document.querySelector('#port-field').style.display = sta === '1' ? '' : 'none'
+		document.querySelector('#url-field').style.display = sta === '2' ? '' : 'none'
+		document.querySelector('#to-field').style.display = sta === '0' ? 'none' : ''
+	}
+
+	function getOverlay() {
+		ajax({
+			url: '/get_overlay_cfg',
+			success: function (res) {
+				document.querySelector('#ov_en').checked = res.ov_en == 1
+				document.querySelector('#ov_sta').value = res.ov_sta
+				document.querySelector('#ov_host').value = res.ov_host || ''
+				document.querySelector('#ov_url').value = res.ov_url || ''
+				document.querySelector('#ov_port').value = res.ov_port
+				document.querySelector('#ov_timeout').value = res.ov_timeout
+				document.querySelector('#ov_wunit').value = res.ov_wunit
+				document.querySelector('#ov_tunit').value = res.ov_tunit
+				document.querySelector('#ov_clean').checked = res.ov_clean == 1
+				;(res.el || []).forEach(function (e) {
+					var en = document.querySelector('#el_' + e.id + '_en')
+					if (!en) return
+					en.checked = e.en == 1
+					document.querySelector('#el_' + e.id + '_an').value = e.an
+					document.querySelector('#el_' + e.id + '_x').value = e.x
+					document.querySelector('#el_' + e.id + '_y').value = e.y
+				})
+				showSta()
+				paint()
+			},
+			error: function (err) {
+				if (err == 0 || err == 404)
+					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
+			}
+		})
+	}
+
+	function setOverlay() {
+		var data = {
+			ov_en: document.querySelector('#ov_en').checked ? 1 : 0,
+			ov_sta: Number(document.querySelector('#ov_sta').value),
+			ov_host: document.querySelector('#ov_host').value.trim(),
+			ov_url: document.querySelector('#ov_url').value.trim(),
+			ov_port: Number(document.querySelector('#ov_port').value),
+			ov_timeout: Number(document.querySelector('#ov_timeout').value),
+			ov_wunit: Number(document.querySelector('#ov_wunit').value),
+			ov_tunit: Number(document.querySelector('#ov_tunit').value),
+			ov_clean: document.querySelector('#ov_clean').checked ? 1 : 0,
+			el: ELS.map(function (el) {
+				var g = readEl(el[0])
+				return { id: el[0], en: g.en ? 1 : 0, an: g.an, x: g.x, y: g.y }
+			})
+		}
+		ajax({
+			method: 'post',
+			url: '/set_overlay_cfg',
+			data: data,
+			success: function (res) {
+				if (res && res.status == 0) {
+					toast({ txt: res.msg || 'Failed', type: 'error' })
+					return
+				}
+				toast({ txt: 'Success', type: 'success' })
+				getOverlay()
+			},
+			error: function (err) {
+				toast({ txt: err, type: 'error' })
+			}
+		})
+	}
+
+	buildElements()
+	document.querySelector('#ov_sta').addEventListener('change', showSta)
+	document.querySelector('#elements').addEventListener('input', function (ev) {
+		var row = ev.target.closest('.ov-el')
+		if (row) hot = row.getAttribute('data-id')
+		paint()
+	})
+	document.querySelector('#elements').addEventListener('change', paint)
+	document.querySelector('#ov_wunit').addEventListener('change', paint)
+	document.querySelector('#ov_tunit').addEventListener('change', paint)
+	document.querySelectorAll('.ov-chip').forEach(function (chip) {
+		chip.addEventListener('pointerdown', function (ev) {
+			if (ev.button !== 0) return
+			var id = chip.getAttribute('data-id')
+			if (id === 'nd' && readEl('rs').en) return
+			hot = id
+			chip.setPointerCapture(ev.pointerId)
+			drag = {
+				id: id,
+				px: ev.clientX,
+				py: ev.clientY,
+				ox: Number(document.querySelector('#el_' + id + '_x').value),
+				oy: Number(document.querySelector('#el_' + id + '_y').value)
+			}
+			paint()
+		})
+		chip.addEventListener('pointermove', function (ev) {
+			if (!drag || drag.id !== chip.getAttribute('data-id')) return
+			var rect = document.querySelector('#stage').getBoundingClientRect()
+			var dx = (ev.clientX - drag.px) / rect.width * 1000
+			var dy = (ev.clientY - drag.py) / rect.height * 1000
+			document.querySelector('#el_' + drag.id + '_x').value = clamp(drag.ox + dx)
+			document.querySelector('#el_' + drag.id + '_y').value = clamp(drag.oy + dy)
+			paint()
+		})
+		chip.addEventListener('pointerup', function () { drag = null })
+		chip.addEventListener('pointercancel', function () { drag = null })
+	})
+	showSta()
+	paint()
+	getOverlay()
+</script>
+</html>

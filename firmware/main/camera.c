@@ -56,6 +56,8 @@ static void cam_pwdn_release(int end_level, int low_ms, int high_ms)
     vTaskDelay(pdMS_TO_TICKS(high_ms));
 }
 
+static void cam_settle_exposure(void);
+
 esp_err_t camera_bringup(void)
 {
     bool psram = false;
@@ -140,7 +142,64 @@ esp_err_t camera_bringup(void)
     gpio_set_level(PIN_STATUS_LED, LED_ON_LEVEL);
     hp10_cam_cfg_apply();
     hp10_sky_awb_apply();
+    cam_settle_exposure();
     return ESP_OK;
+}
+
+/* One buffer, filled only when empty, so the JPEG queued at power-on is
+ * the unset exposure. Drop frames until that exposure stops moving. */
+static int ov2640_exposure(sensor_t *s)
+{
+    int reg04, aec, hi;
+    if (!s || !s->get_reg)
+        return -1;
+    reg04 = s->get_reg(s, 0x104, 0x03);
+    aec = s->get_reg(s, 0x110, 0xFF);
+    hi = s->get_reg(s, 0x145, 0x3F);
+    if (reg04 < 0 || aec < 0 || hi < 0)
+        return -1;
+    return (hi << 10) | (aec << 2) | (reg04 & 3);
+}
+
+static void cam_settle_exposure(void)
+{
+    sensor_t *s = esp_camera_sensor_get();
+    int prev = -1;
+    int stable = 0;
+    int dropped = 0;
+    int exp = -1;
+    const int min_frames = 3;
+    const int max_frames = 15;
+
+    for (int i = 0; i < max_frames; i++) {
+        int tol;
+        int delta;
+        camera_fb_t *fb = esp_camera_fb_get();
+        if (!fb) {
+            ESP_LOGW(TAG, "settle: no frame after %d", dropped);
+            break;
+        }
+        esp_camera_fb_return(fb);
+        dropped++;
+        exp = ov2640_exposure(s);
+        if (dropped < min_frames || prev < 0 || exp < 0) {
+            stable = 0;
+            prev = exp;
+            continue;
+        }
+        delta = exp > prev ? exp - prev : prev - exp;
+        tol = prev / 12;
+        if (tol < 40)
+            tol = 40;
+        if (delta <= tol)
+            stable++;
+        else
+            stable = 0;
+        prev = exp;
+        if (stable >= 2)
+            break;
+    }
+    ESP_LOGI(TAG, "settle: dropped %d frames aec=%d", dropped, exp);
 }
 
 static int64_t s_cam_try_us;

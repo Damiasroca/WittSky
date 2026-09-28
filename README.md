@@ -1,12 +1,12 @@
 # WittSky
 
-WittSky is replacement firmware for the Ecowitt HP10 / HP10X sky camera. It runs on the camera’s ESP32, drives the onboard OV2640, and keeps the same 4 MB flash map the board shipped with. The current release string is `WittSky_1.0.0`, taken from `firmware/version.txt` and compiled in as `HP10_VERSION`.
+WittSky is replacement firmware for the Ecowitt HP10 / HP10X sky camera. It runs on the camera’s ESP32, drives the onboard OV2640, and keeps the same 4 MB flash map the board shipped with. The current release string is `WittSky_1.0.0`, taken from `HP10_VERSION` in `firmware/main/version.h`.
 
 The image is a bring-up of the board, written against the pinout, web pages, and upload protocol recovered from the stock `ESP32_HP10_V1.1.1` firmware. It is not a line-by-line port of that binary’s task graph. What it does carry across is the behaviour that matters in the field: the camera comes up without browning out the rail, the access point is `HP10-WIFI` plus the last two MAC bytes, pictures can be posted to Ecowitt or to a server you choose, and the on-device pages still look and talk like the camera’s own UI.
 
 On top of that recovered behaviour the firmware adds a sky measurement (cloud fraction, colour ratio, exposure, a relative light index), an application watchdog with a reboot cap, mDNS, a full IANA time-zone table, a WebSocket log stream, and two ways to install a new image (a version URL, or an app `.bin` uploaded from the browser).
 
-The ESP-IDF project lives in `firmware/`. The CMake project name is `hp10_bringup`, so the application binary is `hp10_bringup.bin`.
+The ESP-IDF project lives in `firmware/`. The CMake project name stays `hp10_bringup`, which is what `idf.py flash` writes. The same application image is also saved as `<HP10_VERSION>.bin` (currently `WittSky_1.0.1.bin`).
 
 ## Hardware
 
@@ -110,7 +110,7 @@ A few routes stay open because the live view and the version string are used bef
 
 ## The web interface
 
-Pages are compiled into the application image. There is no SPIFFS website to update separately. The sidebar, shared by every page except login, links Status, Network, Capture, Sky, Camera, and System. A strip along the top of those pages polls `/get_health` every 15 seconds and shows RSSI, uptime, the last upload, and whether the camera is up. A `401` hides the strip.
+Pages are compiled into the application image. There is no SPIFFS website to update separately. The sidebar, shared by every page except login, links Status, Network, Capture, Overlay, Sky, Camera, and System. A strip along the top of those pages polls `/get_health` every 15 seconds and shows RSSI, uptime, the last upload, and whether the camera is up. A `401` hides the strip.
 
 ### Status
 
@@ -181,7 +181,7 @@ The interval control is the stock `ost_interval` value:
 
 When a destination and a non-zero interval are both set, the first picture goes out about five seconds later, then on the period. If the station has no IP, or the camera is down, the shot is skipped and retried in ten seconds. A camera that is down is asked to recover first. Each shot grabs one JPEG under the camera mutex, optionally computes sky stats, posts, and releases the frame.
 
-The task stack is 12 KB. The idle reason is logged on change and at least every 30 seconds: interval off, both destinations, upload disabled, bad URL, camera down, or no station IP.
+The task stack is 16 KB. The idle reason is logged on change and at least every 30 seconds: interval off, both destinations, upload disabled, bad URL, camera down, or no station IP.
 
 ### Custom server
 
@@ -213,7 +213,27 @@ Fields, in order:
 | `md5` | Uppercase hex MD5 of the JPEG bytes |
 | `weather_image` | The JPEG, filename `<unix-time>.jpg` |
 
-Sky stats are computed on this path too, when enabled, so the Sky page and the health snapshot update. They are not attached to the Ecowitt body. Ecowitt’s image API does not take that header.
+Sky stats are computed on this path too, when enabled, so the Sky page and the health snapshot update. They are not attached to the Ecowitt body. Ecowitt’s image API does not take that header. Sky stats always measure the camera JPEG, before any overlay is drawn.
+
+### Weather overlay
+
+Still captures and uploads can burn the time and the station weather into the JPEG. The live stream on port 81 is left clean, and so are the white-balance calibration grabs. The master switch defaults to off. Settings are stored in NVS and applied from the Overlay page without a reflash.
+
+Two weather sources are available. A local Ecowitt gateway is `GET http://<host>:<port>/get_livedata_info`. Ecowitt cloud is an `https` GET of the real-time URL stored on the Overlay page (`/api/v3/device/real_time`, with the application key, API key, and station MAC in the query). The fetch timeout is 0.5–20 seconds (default 8). Wind is kept as mm/s, temperature as milli-°C, and direction as degrees. The picture shows km/h, m/s, mph, or knots, and °C or °F. With no station selected, the clock and the compass still draw, without wind, temperature, rain, or the needle.
+
+On the cloud document, rain is on when `rainfall.rain_rate` or `rainfall_piezo.rain_rate` is a positive number, or when `rainfall_piezo.state` is `1`. On a local gateway, rain is on when the rain-rate field `0x0E` in `rain` or `piezoRain` is a positive number, or when `piezoRain` `srain_piezo` is `1`. A missing rain section means it is not raining. A rain rate that is present but not a number fails the reading. Outdoor temperature (`0x02`), instantaneous wind (`0x0B`), and direction (`0x0A`) are required. If the gateway cannot be read, the original JPEG is sent and the reason is logged. Decode, encode, and allocation failures do the same. A capture is never dropped because the overlay failed.
+
+`Send Ecowitt the photo without the overlay` keeps the Ecowitt.net upload on the camera JPEG. Custom uploads and `/capture` still get the overlay. The two destinations are exclusive, so a shot does not encode a second JPEG it will not send.
+
+Each element has its own enable, anchor, and offset. Offsets are thousandths of the frame, added to that corner or edge. The needle’s anchor is its centre. The default needle sits on the rose for a 4:3 frame. The rose is drawn from `rosa4.png` and the rain icon from `rainy.png`, scaled with the frame height. The typeface is DejaVu Sans Bold.
+
+To regenerate those bitmaps, from the repo root:
+
+```bash
+python tools/gen_overlay_assets.py
+```
+
+That rewrites `overlay_font.c`, `overlay_font.h`, `overlay_assets.c`, and `overlay_assets.h`. It needs Pillow and `tools/fonts/DejaVuSans-Bold.ttf`.
 
 The passkey is derived from the MAC. It is not the account password. The account password is used only by the separate login and registration client.
 
@@ -313,9 +333,9 @@ light_idx = log2( luma / (aec · gain_x) )
 
 This is not lux. It is a way to compare frames after the automatic exposure controller has done its job: the same scene light should land near the same index whether the sensor answered with a short exposure or a long one. It moves when the scene does, and also when you change brightness, contrast, or the white-balance preset, because those change luma without being exposure.
 
-White-balance gains are read only when the sky white-balance mode is not Auto. Auto leaves the gains null.
+White-balance gains are written to DSP bytes `0xCC`, `0xCD`, and `0xCE` after manual white balance is selected. The public register map marks that range reserved, and the application note only writes those bytes; it never reads them back. On this sensor they sit at the reset value 128 and do not follow Auto, so `awb_gains` is the triple that was written. In Auto it is null.
 
-The sky white-balance control is applied to the sensor as white balance on, AWB gain on, and `wb_mode` set to the chosen preset: 0 Auto, 1 Sunny, 2 Cloudy, 3 Office, 4 Home. A fixed preset changes the colour of every picture the camera then uploads. Auto does not pin the gains. The mode is applied at camera init and again whenever the setting changes.
+The sky white-balance control is applied to the sensor as white balance on, AWB gain on, and `wb_mode` set to the chosen preset: 0 Auto, 1 Sunny (`94, 65, 84`), 2 Cloudy (`101, 65, 79`), 3 Office (`82, 65, 102`), 4 Home (`66, 63, 113`). Modes 5 to 8 are the four saved custom presets. Each stores a name and R, G, B, and is written to the same manual gain registers. A fixed colour, including a saved preset, changes every picture the camera then uploads. Auto does not pin the gains. The mode is applied at camera init, after an image-setting change, and again whenever the white-balance setting changes. The Camera page accepts four presets, either by typing the gains or by **Calibrate from sky**, which matches automatic white balance on the sky mask and stores the result. When all four are saved, it shows a delete control for each and the note “No more presets can be saved.” Each sky measurement records `awb_name` and, except in Auto, `awb_gains`.
 
 ### The JSON document
 
@@ -334,6 +354,7 @@ A complete daytime sample looks like this. Nulls appear in place of the sensor o
   "gain_x": 1.00,
   "light_idx": -6.51,
   "awb_mode": 0,
+  "awb_name": "Auto",
   "awb_gains": null,
   "img": { "bri": 0, "con": 0, "sat": 0, "fx": 0 },
   "img_default": true,
@@ -382,12 +403,14 @@ You store an `http://` or `https://` URL. **Check firmware** `GET`s it, with a 1
 {
   "code": 0,
   "data": {
-    "version": "WittSky_1.1.0",
+    "version": "WittSky_1.0.2",
     "content": "Short release note",
-    "attach1file": "http://192.168.1.10/hp10_bringup.bin"
+    "attach1file": "https://raw.githubusercontent.com/Damiasroca/WittSky/main/WittSky_1.0.2.bin"
   }
 }
 ```
+
+The firmware’s default check URL, used when none is saved, is `https://raw.githubusercontent.com/Damiasroca/WittSky/main/ota.json`. That address is 66 characters, inside the 127-character limit. `attach1file` is the same file served directly from the repository, because a camera still on 1.0.1 has a 512-byte HTTP buffer and cannot follow the ~900-byte redirect that a GitHub release download returns. 1.0.2 raises that buffer to 2048 bytes. The same image is also attached to the GitHub release.
 
 `code` must be 0 and `data` must be present. `attach1file` must be an `http` or `https` URL. If `version` is empty or equal to the running `HP10_VERSION`, the result is “no update”. Any other version is offered, with `content` as the note. **Upgrade Version** downloads that file with `esp_https_ota` (plain HTTP is allowed by `CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP`), checks the image header, and reboots on success. The page polls `upgrade_process` with action `running` and reads progress from bytes written over image size.
 
@@ -397,7 +420,7 @@ The check itself does not compare numeric versions. Any string that differs from
 
 **Flash file** posts the bytes to `/upgrade_upload`. The firmware checks the first byte before it commits to `esp_ota_begin`. An ELF (`0x7F 'E' 'L' 'F'`) is rejected with “That is an ELF, not an app .bin”. Anything other than the ESP32 image magic `0xE9` is rejected as not an app image. The size must be at least 512 bytes and must fit the inactive slot. A short body is “Upload truncated”. `esp_ota_end` verifies the image; only then is the boot partition switched, and the camera reboots.
 
-Flash the application binary, `hp10_bringup.bin`, or a dump of a single OTA slot. Do not flash a full 4 MB chip dump through this route. The partition table, NVS, and PHY data are not part of an app image, and a full dump is not a valid image for `esp_ota_write`.
+Flash the application binary, `<HP10_VERSION>.bin`, or a dump of a single OTA slot. Do not flash a full 4 MB chip dump through this route. The partition table, NVS, and PHY data are not part of an app image, and a full dump is not a valid image for `esp_ota_write`.
 
 ## WebSocket logs
 
@@ -425,7 +448,7 @@ All of the settings below live in the NVS namespace `hp10`. Wi-Fi PHY calibratio
 | `wd_en`, `wd_cam_n`, `wd_up_n`, `wd_cap_n`, `wd_cap_m` | Watchdog |
 | `loc`, `lat_e6`, `lon_e6`, `utc_off`, `tz_iana` | Location and time zone |
 | `eco_acct`, `eco_pwd`, `eco_uid`, `eco_nick`, `eco_devid` | Ecowitt session |
-| `sky_en`, `sky_x`, `sky_y`, `sky_w`, `sky_h`, `sky_rb`, `sky_sat`, `sky_awb`, `sky_daym` | Sky mask and thresholds |
+| `sky_en`, `sky_x`, `sky_y`, `sky_w`, `sky_h`, `sky_rb`, `sky_sat`, `sky_awb`, `sky_awb_r`, `sky_awb_g`, `sky_awb_b`, `sky_daym`, `sky_p0*` … `sky_p3*` (`u`, `r`, `g`, `b`, `n` for each) | Sky mask, thresholds, white balance, and the four custom presets |
 | `cam_set`, `cam_fs`, `cam_bri`, `cam_con`, `cam_sat`, `cam_hm`, `cam_vf` | Picture settings, present only after a save |
 
 Out of range values are ignored on load and the compiled default is kept. A custom URL that fails validation disables custom upload. A bad WebSocket URL clears the URL and disables the stream. A bad OTA URL is cleared.
@@ -456,7 +479,7 @@ Port 80 unless noted. Bodies are JSON, capped at 4 KB, except `/upgrade_upload`,
 | --- | --- | --- |
 | `GET /` | open | Redirect to `/login.html` |
 | `GET /login.html`, `/video.html`, `/axcss.css`, `/axjs.js` | open | Static UI |
-| `GET /localNetwork.html`, `/status.html`, `/capture.html`, `/system.html`, `/skystats.html` | login | Static UI |
+| `GET /localNetwork.html`, `/status.html`, `/capture.html`, `/system.html`, `/skystats.html`, `/overlay.html` | login | Static UI |
 | `GET /get_version` | open | `{ version, newVersion }` |
 | `POST /set_login_info` | open | `{ pwd }` base64. Returns `status` `1` or `0` |
 | `GET /get_ws_settings` | login | Clock, location, upload, WebSocket log |
@@ -484,6 +507,8 @@ Port 80 unless noted. Bodies are JSON, capped at 4 KB, except `/upgrade_upload`,
 | `GET /get_sky_stats` | login | Cached sky JSON, or a fresh one with `?fresh=1` |
 | `GET /get_sky_cfg` | login | Sky settings |
 | `POST /set_sky_cfg` | login | Sky settings |
+| `GET /get_overlay_cfg` | login | Overlay enable, station, units, element placement |
+| `POST /set_overlay_cfg` | login | Same fields. `status` `0` and `msg` on a rejected value |
 
 `/stream` uses the boundary `123456789000000000000987654321` and sends `Access-Control-Allow-Origin: *`, as `/capture` does. The stream handler returns when a frame cannot be taken or the client goes away. It is one client at a time in practice, because the single frame buffer is held for the duration of each JPEG send.
 
@@ -506,9 +531,9 @@ idf.py set-target esp32
 idf.py build
 ```
 
-`set-target` generates `sdkconfig` from `sdkconfig.defaults` the first time. The version string is the contents of `firmware/version.txt`. Change that file before building a release; once WittSky is running, its own OTA check is a straight string compare against that version.
+`set-target` generates `sdkconfig` from `sdkconfig.defaults` the first time. The version string is `HP10_VERSION` in `firmware/main/version.h`. Change that before building a release; once WittSky is running, its own OTA check is a straight string compare against that version.
 
-To regenerate the time-zone table after pulling a newer POSIX zone database, run `firmware/main/gen_tz_zones.py`. It rewrites `tz_zones.c`.
+To regenerate the time-zone table after pulling a newer POSIX zone database, run `firmware/main/gen_tz_zones.py`. It rewrites `tz_zones.c`. To regenerate the overlay font and the compass and rain bitmaps, run `python tools/gen_overlay_assets.py` from the repo root.
 
 The image can be installed in either of two ways. A serial flash writes the bootloader, the partition table, and the app. Spoofing the stock OTA check installs the app alone, into the inactive OTA slot, without opening the case. After WittSky is on the camera, later updates use the System page or serial again. The spoof server speaks the stock version check, which is a different JSON document from the one WittSky’s own updater expects.
 
@@ -524,11 +549,11 @@ idf.py -p PORT flash monitor
 
 A camera still running the stock HP10 firmware asks `ota.ecowitt.net` for `GET /api/ota/v1/version/info`, then downloads whatever URL comes back in `data.attach1file`. `OTA_SPOOF/` answers that check from a PC. It brings up a 2.4 GHz WPA2 access point, hands the camera an address by DHCP, and resolves only `ota.ecowitt.net` and `oss.ecowitt.net` to that PC. Every other name is NXDOMAIN. The version body uses the stock field names (`data.name`, `data.content`, `data.attach1file`, `data.queryintval`). `attach1file` is an `https://oss.ecowitt.net/` URL; the stock client rewrites it to HTTP on port 80 and the same process serves the file.
 
-`FW_VERSION` has to be a string the stock UI will treat as newer than `V1.1.1`. The default in the example settings is `V9.9.9`. The file it serves must be the application image, `firmware/build/hp10_bringup.bin`, not an ELF and not a full-chip dump.
+`FW_VERSION` has to be a string the stock UI will treat as newer than `V1.1.1`. The default in the example settings is `V9.9.9`. The file it serves must be the application image, `firmware/build/<HP10_VERSION>.bin`, not an ELF and not a full-chip dump.
 
 On Windows, from an elevated PowerShell:
 
-1. Copy `OTA_SPOOF/settings.env.example` to `OTA_SPOOF/settings.env`. Set `SSID`, `PSK` (8–63 characters), and `FW_PATH`. A relative `FW_PATH` is resolved from the `OTA_SPOOF` folder. The example points at `firmware/fw.bin` inside that folder, so copy `firmware/build/hp10_bringup.bin` there, or set `FW_PATH` to `../firmware/build/hp10_bringup.bin`. An absolute path works too.
+1. Copy `OTA_SPOOF/settings.env.example` to `OTA_SPOOF/settings.env`. Set `SSID`, `PSK` (8–63 characters), and `FW_PATH`. A relative `FW_PATH` is resolved from the `OTA_SPOOF` folder. The example points at `firmware/fw.bin` inside that folder, so copy `firmware/build/<HP10_VERSION>.bin` there, or set `FW_PATH` to that file. An absolute path works too.
 2. In one elevated window, run `OTA_SPOOF/run.ps1`. It starts a hosted-network access point on a hosted-network-capable adapter, assigns `AP_IP` (default `192.168.50.1/24`), and opens the firewall for DHCP, DNS, and HTTP. It holds that network until Ctrl+C.
 3. In a second elevated window, from the repository root, run `python -m OTA_SPOOF.main`. That process is the DHCP server, the DNS server, and the HTTP server on port 80. The raw traffic log also needs the elevated token. Ctrl+C stops it. Stopping `run.ps1` tears the access point down.
 

@@ -9,9 +9,11 @@
 #include "freertos/task.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "hp10_bringup.h"
+#include "overlay.h"
 #include "sky_stats.h"
 #include "upload_priv.h"
 
@@ -34,6 +36,9 @@ static esp_err_t upload_now(void)
         return ESP_ERR_INVALID_STATE;
     }
 
+    ov_sample_t wx;
+    bool overlay = false;
+    hp10_overlay_prepare(OV_DEST_CUSTOM, &wx, &overlay);
     camera_fb_t *fb = grab_frame();
     if (!fb) {
         hp10_upload_result_set(false, "camera grab failed");
@@ -41,6 +46,15 @@ static esp_err_t upload_now(void)
     }
     char sky[HP10_SKY_JSON_MAX];
     sky_stats_on_frame(fb, sky, sizeof sky);
+    uint8_t *ov = NULL;
+    size_t ov_n = 0;
+    const uint8_t *send = fb->buf;
+    size_t send_n = fb->len;
+    if (overlay &&
+        hp10_overlay_render(&wx, fb->buf, fb->len, &ov, &ov_n) == ESP_OK) {
+        send = ov;
+        send_n = ov_n;
+    }
 
     bool https = strncmp(g_upload_url, "https://", 8) == 0;
     esp_http_client_config_t cfg = {
@@ -50,7 +64,7 @@ static esp_err_t upload_now(void)
         .event_handler = http_evt,
         .crt_bundle_attach = https ? esp_crt_bundle_attach : NULL,
     };
-    ESP_LOGI(TAG, "custom jpeg=%u https=%d", (unsigned)fb->len, https ? 1 : 0);
+    ESP_LOGI(TAG, "custom jpeg=%u https=%d", (unsigned)send_n, https ? 1 : 0);
     esp_err_t err = ESP_FAIL;
     for (int attempt = 0; attempt < 2 && err != ESP_OK; attempt++) {
         if (attempt) {
@@ -71,7 +85,7 @@ static esp_err_t upload_now(void)
         esp_http_client_set_header(cli, "Content-Type", "image/jpeg");
         if (sky[0])
             esp_http_client_set_header(cli, "X-Sky-Stats", sky);
-        esp_http_client_set_post_field(cli, (char *)fb->buf, fb->len);
+        esp_http_client_set_post_field(cli, (char *)send, send_n);
         err = esp_http_client_perform(cli);
         log_http_result("custom", g_upload_url, cli, err, &acc);
         int status = esp_http_client_get_status_code(cli);
@@ -79,6 +93,7 @@ static esp_err_t upload_now(void)
             err = ESP_FAIL;
         esp_http_client_cleanup(cli);
     }
+    free(ov);
     drop_frame(fb);
     ESP_LOGI(TAG, "custom done %s", esp_err_to_name(err));
     if (err == ESP_OK) {
@@ -264,5 +279,5 @@ esp_err_t hp10_upload_run_now(uint32_t wait_ms)
 void hp10_upload_start(void)
 {
     s_now_sem = xSemaphoreCreateBinary();
-    xTaskCreate(upload_task, "upload", 12288, NULL, 3, NULL);
+    xTaskCreate(upload_task, "upload", 16384, NULL, 3, NULL);
 }

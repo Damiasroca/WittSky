@@ -94,6 +94,47 @@ static esp_err_t decode_rgb(const uint8_t *jpeg, size_t jpeg_len,
     return ESP_OK;
 }
 
+static int clamp_pct(int pct, int limit)
+{
+    if (pct < 0)
+        return 0;
+    if (pct > limit)
+        return limit;
+    return pct;
+}
+
+bool hp10_sky_mask_mean(const uint8_t *jpeg, size_t jpeg_len,
+                        double *r, double *g, double *b)
+{
+    uint8_t *rgb = NULL;
+    uint16_t jpg_w = 0, jpg_h = 0, dec_w = 0, dec_h = 0;
+    if (decode_rgb(jpeg, jpeg_len, &rgb, &jpg_w, &jpg_h, &dec_w, &dec_h) != ESP_OK)
+        return false;
+
+    int x0 = clamp_pct(g_sky_x * dec_w / 100, dec_w);
+    int y0 = clamp_pct(g_sky_y * dec_h / 100, dec_h);
+    int x1 = clamp_pct((g_sky_x + g_sky_w) * dec_w / 100, dec_w);
+    int y1 = clamp_pct((g_sky_y + g_sky_h) * dec_h / 100, dec_h);
+    uint64_t sr = 0, sg = 0, sb = 0;
+    uint32_t n = 0;
+    for (int y = y0; y < y1; y++) {
+        for (int x = x0; x < x1; x++) {
+            const uint8_t *p = rgb + ((size_t)y * dec_w + (size_t)x) * 3;
+            sr += p[0];
+            sg += p[1];
+            sb += p[2];
+            n++;
+        }
+    }
+    free(rgb);
+    if (n == 0)
+        return false;
+    *r = (double)sr / (double)n;
+    *g = (double)sg / (double)n;
+    *b = (double)sb / (double)n;
+    return true;
+}
+
 esp_err_t hp10_sky_compute(const uint8_t *jpeg, size_t jpeg_len,
                            uint16_t frame_w, uint16_t frame_h,
                            char *json_out, size_t json_out_n)

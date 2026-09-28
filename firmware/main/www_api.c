@@ -15,6 +15,7 @@
 
 #include "cam_cfg.h"
 #include "hp10_bringup.h"
+#include "overlay.h"
 #include "pins.h"
 #include "www_priv.h"
 
@@ -28,7 +29,9 @@ static esp_err_t get_version(httpd_req_t *req)
     char buf[64];
     snprintf(buf, sizeof buf, "Version: %s", HP10_VERSION);
     cJSON_AddStringToObject(o, "version", buf);
-    cJSON_AddNumberToObject(o, "newVersion", 0);
+    cJSON_AddNumberToObject(o, "newVersion", hp10_ota_has_update() ? 1 : 0);
+    if (hp10_ota_has_update())
+        cJSON_AddStringToObject(o, "msg", hp10_ota_msg());
     return send_json(req, o);
 }
 
@@ -870,13 +873,30 @@ static camera_fb_t *take_fb(void)
 
 static esp_err_t capture_get(httpd_req_t *req)
 {
+    ov_sample_t wx;
+    bool overlay = false;
+    uint8_t *ov = NULL;
+    size_t ov_n = 0;
+    const uint8_t *send;
+    size_t send_n;
+    esp_err_t e;
+
+    hp10_overlay_prepare(OV_DEST_STILL, &wx, &overlay);
     camera_fb_t *fb = take_fb();
     if (!fb)
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "capture");
+    send = fb->buf;
+    send_n = fb->len;
+    if (overlay &&
+        hp10_overlay_render(&wx, fb->buf, fb->len, &ov, &ov_n) == ESP_OK) {
+        send = ov;
+        send_n = ov_n;
+    }
     httpd_resp_set_type(req, "image/jpeg");
     httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    esp_err_t e = httpd_resp_send(req, (char *)fb->buf, fb->len);
+    e = httpd_resp_send(req, (char *)send, send_n);
+    free(ov);
     esp_camera_fb_return(fb);
     xSemaphoreGive(g_cam_mu);
     return e;

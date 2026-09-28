@@ -3,12 +3,15 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Capture</title>
+	<title>Uploads</title>
 	<link rel="stylesheet" href="./axcss.css">
 	<style>
-		#tz_filter, #tz_iana { max-width: 420px; }
-		#tz_filter { margin-bottom: 8px; }
-		#eco-devices { white-space: pre-wrap; }
+		.upload-status { padding: 16px 24px 0; }
+		.dest { display: flex; flex-wrap: wrap; gap: 0 20px; }
+		#eco-msg { white-space: pre-line; }
+		@media (max-width: 760px) {
+			.upload-status { padding: 12px 16px 0; }
+		}
 	</style>
 </head>
 <body>
@@ -16,107 +19,24 @@
 		<div id="sidebar"></div>
 		<div class="content" id="content">
 			<header class="page-head">
-				<h1 class="page-til">Capture</h1>
-				<p class="page-sub">Clock, location, and where pictures are sent.</p>
+				<h1 class="page-til">Uploads</h1>
+				<p class="page-sub">Where pictures are sent, and how often.</p>
 			</header>
-			<section class="content-box" data-tone="ok">
-				<h2 class="input-box-til">Clock</h2>
-				<div class="input-box">
-					<div class="input-des">Date</div>
-					<div class="input-item flex-no">
-						<div id="date"></div>
-						<div id="no-uploaded"></div>
-					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Time Zone</div>
-					<div class="input-item" id="time-zone"></div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Sunrise</div>
-					<div class="input-item" id="sunrise"></div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Sunset</div>
-					<div class="input-item" id="sunset"></div>
-				</div>
-			</section>
-			<section class="content-box" data-tone="net">
-				<h2 class="input-box-til">Location</h2>
-				<div class="input-box">
-					<div class="input-des">Latitude</div>
-					<div class="input-item">
-						<input type="number" id="lat" step="0.0001" min="-90" max="90" placeholder="48.8566" />
-					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Longitude</div>
-					<div class="input-item">
-						<input type="number" id="lon" step="0.0001" min="-180" max="180" placeholder="2.3522" />
-					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Time zone</div>
-					<div class="input-item flex-no">
-						<input type="search" id="tz_filter" placeholder="Search city or region" autocomplete="off" />
-						<select id="tz_iana">
-							<option value="">Loading timezones…</option>
-						</select>
-						<div class="pwd-des">IANA tz database. DST switches automatically (last Sunday of March / October in Europe, second Sunday of March / first Sunday of November in the US, and so on).</div>
-					</div>
-				</div>
-				<div class="btn-box save-box">
-					<button type="button" class="common-btn" onclick="setCapture()">Apply</button>
-				</div>
-			</section>
-			<section class="content-box" data-tone="ok">
-				<h2 class="input-box-til">Ecowitt account</h2>
-				<div id="eco-login" style="display:none">
-				<div class="input-box">
-					<div class="input-des">Account</div>
-					<div class="input-item">
-						<input type="text" id="eco_account" maxlength="80" autocomplete="username" placeholder="name@email" />
-					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Password</div>
-					<div class="input-item">
-						<input type="password" id="eco_pwd" maxlength="64" autocomplete="current-password" placeholder="Ecowitt password" />
-						<div class="pwd-des" id="eco-pwd-hint"></div>
-					</div>
-				</div>
-				<div class="btn-box save-box">
-					<button type="button" class="common-btn" onclick="loginEco()">Log in</button>
-				</div>
-				</div>
-				<div id="eco-register-box" style="display:none">
-				<div class="input-box">
-					<div class="input-des">Camera name</div>
-					<div class="input-item">
-						<input type="text" id="eco_name" maxlength="31" placeholder="HP10" />
-						<div class="pwd-des">Letters, numbers, space, dot, dash, underscore. Uses the location and time zone above, and this camera MAC.</div>
-					</div>
-				</div>
-				<div class="btn-box save-box">
-					<button type="button" class="common-btn" onclick="registerEco()">Register this camera</button>
-				</div>
-				</div>
-				<div class="btn-box save-box" id="eco-logout-box" style="display:none">
-					<button type="button" class="common-btn" onclick="logoutEco()">Log out</button>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Status</div>
-					<div class="input-item flex-no">
-						<div id="eco-status" class="pwd-des"></div>
-						<div id="eco-devices" class="pwd-des"></div>
-					</div>
-				</div>
-			</section>
 			<section class="content-box" data-tone="warn">
 				<h2 class="input-box-til">Upload</h2>
-				<div class="input-box">
-					<div class="input-des">Interval ( minutes )</div>
-					<div class="input-item">
+				<div class="upload-status"><span class="ind" id="no-uploaded">—</span></div>
+				<div class="fields">
+					<div class="field wide">
+						<span class="field-label">Destination</span>
+						<div class="dest">
+							<label class="check"><input type="radio" name="dest" value="off" /> Off</label>
+							<label class="check"><input type="radio" name="dest" value="custom" /> Custom URL</label>
+							<label class="check"><input type="radio" name="dest" value="eco" /> Ecowitt.net</label>
+						</div>
+						<div class="pwd-des">Uploads use this camera MAC. For Ecowitt.net, register the camera with the account below.</div>
+					</div>
+					<div class="field">
+						<label class="field-label" for="ost_interval">Interval (minutes)</label>
 						<select id="ost_interval">
 							<option value="0">off</option>
 							<option value="1" selected>5</option>
@@ -126,23 +46,51 @@
 							<option value="5">25</option>
 						</select>
 					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Upload pictures</div>
-					<div class="input-item flex-no">
-						<label><input type="checkbox" id="upload_en" /> Custom URL</label>
-						<label><input type="checkbox" id="ecowitt_en" /> Ecowitt.net</label>
-						<div class="pwd-des">One destination only, both off by default. Uploads use this camera MAC. Register it with the Ecowitt account above.</div>
-					</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Upload URL</div>
-					<div class="input-item">
+					<div class="field wide" id="url-field">
+						<label class="field-label" for="upload_url">Upload URL</label>
 						<input type="text" id="upload_url" maxlength="127" placeholder="http://192.168.1.10/upload" />
 					</div>
 				</div>
-				<div class="btn-box save-box">
+				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="setCapture()">Apply</button>
+				</div>
+			</section>
+			<section class="content-box" data-tone="ok" id="eco-card" style="display:none">
+				<h2 class="input-box-til">Ecowitt account</h2>
+				<div id="eco-msg" class="notice"></div>
+				<div class="tiles" id="eco-tiles"></div>
+				<div id="eco-login" style="display:none">
+					<div class="fields">
+						<div class="field">
+							<label class="field-label" for="eco_account">Account</label>
+							<input type="text" id="eco_account" maxlength="80" autocomplete="username" placeholder="name@email" />
+						</div>
+						<div class="field">
+							<label class="field-label" for="eco_pwd">Password</label>
+							<input type="password" id="eco_pwd" maxlength="64" autocomplete="current-password" placeholder="Ecowitt password" />
+							<div class="pwd-des" id="eco-pwd-hint"></div>
+						</div>
+					</div>
+					<div class="btn-box">
+						<button type="button" class="common-btn" onclick="loginEco()">Log in</button>
+					</div>
+				</div>
+				<div id="eco-register-box" style="display:none">
+					<div class="fields">
+						<div class="field wide">
+							<label class="field-label" for="eco_name">Camera name</label>
+							<input type="text" id="eco_name" maxlength="31" placeholder="HP10" />
+							<div class="pwd-des">Letters, numbers, space, dot, dash, underscore. Uses the location and time zone set on the System page, and this camera MAC.</div>
+						</div>
+					</div>
+					<div class="btn-box">
+						<button type="button" class="common-btn" onclick="registerEco()">Register this camera</button>
+					</div>
+				</div>
+				<h3 class="tile-group" id="eco-dev-head" style="display:none">Devices on this account</h3>
+				<div class="tiles" id="eco-devices"></div>
+				<div class="btn-box" id="eco-logout-box" style="display:none">
+					<button type="button" class="common-btn" onclick="logoutEco()">Log out</button>
 				</div>
 			</section>
 		</div>
@@ -150,141 +98,67 @@
 </body>
 <script src="./axjs.js"></script>
 <script>
-	let tzZones = []
-	let tzReady = false
-
-	function browserTz() {
-		try {
-			return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-		} catch (e) {
-			return ''
-		}
+	function destValue() {
+		let r = document.querySelector('input[name="dest"]:checked')
+		return r ? r.value : ''
 	}
 
-	function fillTzSelect(selected) {
-		let sel = document.querySelector('#tz_iana')
-		let filter = (document.querySelector('#tz_filter').value || '').trim().toLowerCase()
-		sel.innerHTML = ''
-		let groups = {}
-		tzZones.forEach(function (z) {
-			if (filter && z.toLowerCase().indexOf(filter) < 0)
-				return
-			let g = z.indexOf('/') >= 0 ? z.split('/')[0] : 'Other'
-			if (!groups[g]) groups[g] = []
-			groups[g].push(z)
-		})
-		let keys = Object.keys(groups)
-		if (!keys.length) {
-			let o = document.createElement('option')
-			o.value = ''
-			o.textContent = 'No matches'
-			sel.appendChild(o)
-			return
-		}
-		keys.forEach(function (g) {
-			let og = document.createElement('optgroup')
-			og.label = g
-			groups[g].forEach(function (z) {
-				let o = document.createElement('option')
-				o.value = z
-				o.textContent = z.replace(g + '/', '')
-				if (z === selected) o.selected = true
-				og.appendChild(o)
-			})
-			sel.appendChild(og)
-		})
-		if (selected && sel.value !== selected) {
-			let o = document.createElement('option')
-			o.value = selected
-			o.textContent = selected
-			o.selected = true
-			sel.insertBefore(o, sel.firstChild)
-		}
+	function showDest() {
+		let d = destValue()
+		document.querySelector('#url-field').style.display = d === 'custom' ? '' : 'none'
+		document.querySelector('#eco-card').style.display = d === 'eco' ? '' : 'none'
 	}
 
-	function loadTimezones(selected) {
-		ajax({
-			url: '/get_timezones',
-			success: function (res) {
-				tzZones = (res && res.zones) ? res.zones : []
-				tzReady = true
-				let pick = selected || browserTz()
-				if (pick && tzZones.indexOf(pick) < 0)
-					pick = selected || ''
-				fillTzSelect(pick)
-			},
-			error: function () {
-				document.querySelector('#tz_iana').innerHTML = '<option value="">Could not load timezones</option>'
-			}
-		})
+	function paintUploadStatus(msg) {
+		let el = document.querySelector('#no-uploaded')
+		let tone = 'warn'
+		if (!msg || msg === 'Ecowitt.net')
+			tone = 'ok'
+		else if (msg === 'Upload disabled')
+			tone = ''
+		el.textContent = msg || 'Ready'
+		el.className = tone ? ('ind ' + tone) : 'ind'
 	}
-
-	document.querySelector('#tz_filter').addEventListener('input', function () {
-		fillTzSelect(document.querySelector('#tz_iana').value)
-	})
-
-	document.querySelector('#upload_en').addEventListener('change', function () {
-		if (this.checked)
-			document.querySelector('#ecowitt_en').checked = false
-	})
-	document.querySelector('#ecowitt_en').addEventListener('change', function () {
-		if (this.checked)
-			document.querySelector('#upload_en').checked = false
-	})
 
 	function getCapture() {
 		ajax({
 			url: '/get_ws_settings',
 			success: function (res) {
-				document.querySelector('#date').innerText = res.date
-				document.querySelector('#no-uploaded').innerText = res.no_uploaded
-				document.querySelector('#time-zone').innerText = res.time_zone
-				document.querySelector('#sunrise').innerText = res.sunrise
-				document.querySelector('#sunset').innerText = res.sunset
+				paintUploadStatus(res.no_uploaded)
 				document.querySelector('#ost_interval').value = res.ost_interval
-				document.querySelector('#upload_en').checked = res.upload_en == 1
-				document.querySelector('#ecowitt_en').checked = res.ecowitt_en == 1
 				document.querySelector('#upload_url').value = res.upload_url || ''
-				document.querySelector('#lat').value = (res.lat === null || res.lat === undefined) ? '' : res.lat
-				document.querySelector('#lon').value = (res.lon === null || res.lon === undefined) ? '' : res.lon
-				loadTimezones(res.tz_iana || '')
+				let custom = res.upload_en == 1
+				let eco = res.ecowitt_en == 1
+				let want = ''
+				if (custom && !eco)
+					want = 'custom'
+				else if (eco && !custom)
+					want = 'eco'
+				else if (!custom && !eco)
+					want = 'off'
+				document.querySelectorAll('input[name="dest"]').forEach(function (r) {
+					r.checked = r.value === want
+				})
+				showDest()
 			},
 			error: function (err) {
-				if (err == 0 || err == 404) {
+				if (err == 0 || err == 404)
 					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
-				}
 			}
 		})
 	}
 
 	function setCapture() {
-		let lat = document.querySelector('#lat').value.trim()
-		let lon = document.querySelector('#lon').value.trim()
-		let tz = document.querySelector('#tz_iana').value.trim()
-		if ((lat === '') !== (lon === '')) {
-			toast({ txt: 'Latitude and longitude are both required', type: 'error' })
-			return
-		}
-		if (!tz) {
-			toast({ txt: 'Select a time zone', type: 'error' })
-			return
-		}
-		let custom = document.querySelector('#upload_en').checked
-		let eco = document.querySelector('#ecowitt_en').checked
-		if (custom && eco) {
-			toast({ txt: 'Choose Custom URL or Ecowitt, not both', type: 'error' })
+		let d = destValue()
+		if (!d) {
+			toast({ txt: 'Choose a destination', type: 'error' })
 			return
 		}
 		let data = {
 			ost_interval: document.querySelector('#ost_interval').value,
-			upload_en: custom ? 1 : 0,
-			ecowitt_en: eco ? 1 : 0,
-			upload_url: document.querySelector('#upload_url').value,
-			tz_iana: tz
-		}
-		if (lat !== '') {
-			data.lat = Number(lat)
-			data.lon = Number(lon)
+			upload_en: d === 'custom' ? 1 : 0,
+			ecowitt_en: d === 'eco' ? 1 : 0,
+			upload_url: document.querySelector('#upload_url').value
 		}
 		ajax({
 			method: 'post',
@@ -302,6 +176,48 @@
 				toast({ txt: err, type: 'error' })
 			}
 		})
+	}
+
+	function ecoMessages(res, checking) {
+		let lines = []
+		if (checking)
+			lines.push('Checking whether this camera is still registered…')
+		if (res.msg)
+			lines.push(res.msg)
+		if (!checking && res.check_error)
+			lines.push(res.check_error)
+		if (res.list_error)
+			lines.push(res.list_error)
+		return lines.join('\n')
+	}
+
+	function ecoTiles(res, checking, failed, loggedIn, registered) {
+		let box = document.querySelector('#eco-tiles')
+		box.innerHTML = ''
+		if (res.nickname || res.uid)
+			box.appendChild(makeTile('Account', res.nickname || 'Account', '', res.uid ? 'id ' + res.uid : ''))
+		if (res.mac) {
+			let mac = makeTile('MAC', res.mac)
+			mac.classList.add('wide')
+			box.appendChild(mac)
+		}
+		if (checking)
+			box.appendChild(makeTile('This camera', 'Checking…', 'warn'))
+		else if (registered && res.device_id)
+			box.appendChild(makeTile('This camera', 'Registered', 'ok', 'device ' + res.device_id))
+		else if (!failed && loggedIn)
+			box.appendChild(makeTile('This camera', 'Not registered', 'warn'))
+	}
+
+	function ecoDevices(res) {
+		let box = document.querySelector('#eco-devices')
+		box.innerHTML = ''
+		let list = res.devices || []
+		list.forEach(function (d) {
+			let sub = [d.mac, d.online, d.mine == 1 ? 'this camera' : ''].filter(Boolean).join(', ')
+			box.appendChild(makeTile(d.model || 'Device', d.name || 'device', d.mine == 1 ? 'ok' : '', sub))
+		})
+		document.querySelector('#eco-dev-head').style.display = list.length ? '' : 'none'
 	}
 
 	function fillEco(res) {
@@ -322,31 +238,9 @@
 		document.querySelector('#eco-login').style.display = (!checking && !loggedIn) ? '' : 'none'
 		document.querySelector('#eco-register-box').style.display = (loggedIn && !registered && !failed) ? '' : 'none'
 		document.querySelector('#eco-logout-box').style.display = loggedIn ? '' : 'none'
-		let status = document.querySelector('#eco-status')
-		let lines = []
-		if (checking)
-			lines.push('Checking whether this camera is still registered…')
-		if (res.msg)
-			lines.push(res.msg)
-		if (!checking && res.check_error)
-			lines.push(res.check_error)
-		if (res.nickname || res.uid)
-			lines.push((res.nickname || 'Account') + (res.uid ? '  id ' + res.uid : ''))
-		if (res.mac)
-			lines.push('MAC ' + res.mac)
-		if (registered && res.device_id)
-			lines.push('This camera is registered as device ' + res.device_id)
-		else if (!checking && !failed && res.logged_in == 1)
-			lines.push('This camera is not registered yet')
-		if (res.list_error)
-			lines.push(res.list_error)
-		status.innerText = lines.join('\n')
-		let dev = []
-		;(res.devices || []).forEach(function (d) {
-			dev.push((d.mine == 1 ? '* ' : '') + (d.name || 'device') + '  ' + (d.mac || '') +
-				(d.model ? '  ' + d.model : '') + (d.online ? '  ' + d.online : ''))
-		})
-		document.querySelector('#eco-devices').innerText = dev.join('\n')
+		document.querySelector('#eco-msg').textContent = ecoMessages(res, checking)
+		ecoTiles(res, checking, failed, loggedIn, registered)
+		ecoDevices(res)
 	}
 
 	let ecoWait = 0
@@ -433,6 +327,10 @@
 			}
 		})
 	}
+
+	document.querySelectorAll('input[name="dest"]').forEach(function (r) {
+		r.addEventListener('change', showDest)
+	})
 
 	getCapture()
 	getEco()

@@ -40,6 +40,7 @@ void app_main(void)
     vTaskDelay(pdMS_TO_TICKS(300));
     hp10_camera_boot();
     www_start();
+    hp10_ota_poll_start();
     hp10_systime_start();
     hp10_upload_start();
     hp10_ws_log_start();

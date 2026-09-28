@@ -15,6 +15,11 @@ CONFIG_SPIRAM_TYPE_AUTO=y
 CONFIG_SPIRAM_SPEED_40M=y
 CONFIG_SPIRAM_IGNORE_NOTFOUND=y
 
+# RSA certificate checks need a large contiguous buffer. Internal DRAM is
+# too fragmented once the camera and web server are up (PK verify 0x4290).
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set
+
 CONFIG_ESP32_DEFAULT_CPU_FREQ_240=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 

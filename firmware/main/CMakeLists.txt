@@ -11,6 +11,7 @@ idf_component_register(
         "cam_cfg.c"
         "sky_cfg.c"
         "sky_awb.c"
+        "sky_awb_cal.c"
         "sky_metrics.c"
         "sky_sensor.c"
         "sky_json.c"
@@ -24,6 +25,17 @@ idf_component_register(
         "ws_log.c"
         "health.c"
         "tz_zones.c"
+        "overlay.c"
+        "overlay_cfg.c"
+        "overlay_units.c"
+        "overlay_layout.c"
+        "overlay_draw.c"
+        "overlay_eco.c"
+        "overlay_eco_parse.c"
+        "overlay_enc.cpp"
+        "overlay_font.c"
+        "overlay_assets.c"
+        "www_overlay.c"
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
@@ -53,9 +65,16 @@ idf_component_register(
         "../web/capture.html"
         "../web/system.html"
         "../web/skystats.html"
-        "../web/axcss.css"
+        "../web/overlay.html"
+        "../web/theme_original.css"
+        "../web/theme_technical.css"
+        "../web/theme_warm.css"
         "../web/axjs.js"
+        "../web/camera.js"
+        "../web/awb.js"
+        "../web/skymask.js"
 )
 
-idf_build_get_property(project_ver PROJECT_VER)
-target_compile_definitions(${COMPONENT_LIB} PRIVATE "HP10_VERSION=\"${project_ver}\"")
+idf_component_get_property(cam_dir espressif__esp32-camera COMPONENT_DIR)
+target_include_directories(${COMPONENT_LIB} PRIVATE
+    "${cam_dir}/conversions/private_include")

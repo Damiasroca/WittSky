@@ -12,6 +12,7 @@
 #include <time.h>
 
 #include "hp10_bringup.h"
+#include "overlay.h"
 #include "pins.h"
 #include "upload_priv.h"
 
@@ -115,12 +116,24 @@ esp_err_t upload_ecowitt(void)
         return ESP_ERR_INVALID_STATE;
     }
 
+    ov_sample_t wx;
+    bool overlay = false;
+    hp10_overlay_prepare(OV_DEST_ECO, &wx, &overlay);
     camera_fb_t *fb = grab_frame();
     if (!fb) {
         hp10_upload_result_set(false, "camera grab failed");
         return ESP_FAIL;
     }
     sky_stats_on_frame(fb, NULL, 0);
+    uint8_t *ov = NULL;
+    size_t ov_n = 0;
+    const uint8_t *jpg = fb->buf;
+    size_t jpg_n = fb->len;
+    if (overlay &&
+        hp10_overlay_render(&wx, fb->buf, fb->len, &ov, &ov_n) == ESP_OK) {
+        jpg = ov;
+        jpg_n = ov_n;
+    }
 
     time_t now = time(NULL);
     if (now < 1600000000) {
@@ -142,8 +155,9 @@ esp_err_t upload_ecowitt(void)
              g_abStaMac[0], g_abStaMac[1], g_abStaMac[2],
              g_abStaMac[3], g_abStaMac[4], g_abStaMac[5]);
     if (md5_hex((const uint8_t *)mac_up, strlen(mac_up), passkey) != 0 ||
-        md5_hex(fb->buf, fb->len, jpeg_md5) != 0) {
+        md5_hex(jpg, jpg_n, jpeg_md5) != 0) {
         ESP_LOGE(TAG, "ecowitt md5 failed");
+        free(ov);
         drop_frame(fb);
         return ESP_FAIL;
     }
@@ -153,10 +167,11 @@ esp_err_t upload_ecowitt(void)
              mac, passkey, dateutc, (unsigned)g_ost_interval * 5,
              (unsigned)s_reupload, jpeg_md5);
 
-    size_t cap = fb->len + 2048;
+    size_t cap = jpg_n + 2048;
     char *pkt = psram_malloc(cap);
     if (!pkt) {
         ESP_LOGE(TAG, "ecowitt malloc %u failed", (unsigned)cap);
+        free(ov);
         drop_frame(fb);
         return ESP_ERR_NO_MEM;
     }
@@ -178,6 +193,7 @@ esp_err_t upload_ecowitt(void)
     if (bad) {
         ESP_LOGE(TAG, "ecowitt multipart overflow");
         free(pkt);
+        free(ov);
         drop_frame(fb);
         return ESP_ERR_NO_MEM;
     }
@@ -188,16 +204,18 @@ esp_err_t upload_ecowitt(void)
              " filename=\"%lu.jpg\"\r\n"
              "Content-Type: image/jpeg\r\n\r\n",
              (unsigned long)now);
-    if (append_str(pkt, cap, &n, img_hdr) != 0 || n + fb->len + 48 >= cap) {
+    if (append_str(pkt, cap, &n, img_hdr) != 0 || n + jpg_n + 48 >= cap) {
         ESP_LOGE(TAG, "ecowitt image header overflow cap=%u n=%u jpeg=%u",
-                 (unsigned)cap, (unsigned)n, (unsigned)fb->len);
+                 (unsigned)cap, (unsigned)n, (unsigned)jpg_n);
         free(pkt);
+        free(ov);
         drop_frame(fb);
         return ESP_ERR_NO_MEM;
     }
-    memcpy(pkt + n, fb->buf, fb->len);
-    n += fb->len;
+    memcpy(pkt + n, jpg, jpg_n);
+    n += jpg_n;
     append_str(pkt, cap, &n, "\r\n--" BOUNDARY_TAG "--\r\n");
+    free(ov);
     drop_frame(fb);
     ESP_LOGI(TAG, "ecowitt packet %u bytes", (unsigned)n);
 

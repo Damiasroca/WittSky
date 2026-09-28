@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Status</title>
+	<title>Overview</title>
 	<link rel="stylesheet" href="./axcss.css">
 </head>
 <body>
@@ -11,68 +11,110 @@
 		<div id="sidebar"></div>
 		<div class="content" id="content">
 			<header class="page-head">
-				<h1 class="page-til">Status</h1>
-				<p class="page-sub">Live health of the radio, camera, memory, and uploads.</p>
+				<h1 class="page-til">Overview</h1>
+				<p class="page-sub">Live health of the radio, camera, memory, and uploads, plus the latest sky reading.</p>
 			</header>
 			<section class="content-box" data-tone="net">
 				<h2 class="input-box-til">Connection</h2>
-				<div class="input-box">
-					<div class="input-des">WiFi RSSI</div>
-					<div class="input-item"><span class="ind" id="h-rssi">—</span></div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">SSID / IP</div>
-					<div class="input-item" id="h-net">—</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Camera</div>
-					<div class="input-item"><span class="ind" id="h-cam">—</span></div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Last upload</div>
-					<div class="input-item"><span class="ind" id="h-upload">—</span></div>
+				<div class="tiles">
+					<div class="tile">
+						<div class="tile-label">Wi-Fi signal</div>
+						<div class="tile-value" id="h-rssi">—</div>
+						<div class="tile-sub" id="h-rssi-sub"></div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">SSID</div>
+						<div class="tile-value" id="h-ssid">—</div>
+						<div class="tile-sub" id="h-link"></div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">IP address</div>
+						<div class="tile-value" id="h-ip">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Camera</div>
+						<div class="tile-value" id="h-cam">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Last upload</div>
+						<div class="tile-value" id="h-upload">—</div>
+						<div class="tile-sub" id="h-upload-sub"></div>
+					</div>
 				</div>
 			</section>
 			<section class="content-box" data-tone="ok">
 				<h2 class="input-box-til">Device</h2>
-				<div class="input-box">
-					<div class="input-des">MAC</div>
-					<div class="input-item" id="h-mac">—</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Uptime</div>
-					<div class="input-item" id="h-uptime">—</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Free heap</div>
-					<div class="input-item" id="h-heap">—</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Free PSRAM</div>
-					<div class="input-item" id="h-psram">—</div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Reboot reason</div>
-					<div class="input-item"><span class="ind" id="h-reset">—</span></div>
-				</div>
-				<div class="input-box">
-					<div class="input-des">Previous cause</div>
-					<div class="input-item" id="h-cause">—</div>
+				<div class="tiles">
+					<div class="tile wide">
+						<div class="tile-label">MAC</div>
+						<div class="tile-value" id="h-mac">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Uptime</div>
+						<div class="tile-value" id="h-uptime">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Free heap</div>
+						<div class="tile-value" id="h-heap">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Free PSRAM</div>
+						<div class="tile-value" id="h-psram">—</div>
+						<div class="tile-sub" id="h-psram-sub"></div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Reboot reason</div>
+						<div class="tile-value" id="h-reset">—</div>
+					</div>
+					<div class="tile wide">
+						<div class="tile-label">Previous cause</div>
+						<div class="tile-value" id="h-cause">—</div>
+					</div>
 				</div>
 			</section>
 			<section class="content-box" data-tone="warn">
 				<h2 class="input-box-til">Watchdog</h2>
-				<div class="input-box">
-					<div class="input-des">Fail streaks</div>
-					<div class="input-item"><span class="ind" id="h-streak">—</span></div>
+				<div class="tiles">
+					<div class="tile">
+						<div class="tile-label">Camera failures</div>
+						<div class="tile-value" id="h-camfail">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Upload failures</div>
+						<div class="tile-value" id="h-upfail">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Auto-reboots</div>
+						<div class="tile-value" id="h-cap">—</div>
+						<div class="tile-sub" id="h-cap-sub"></div>
+					</div>
 				</div>
-				<div class="input-box">
-					<div class="input-des">Auto-reboots</div>
-					<div class="input-item"><span class="ind" id="h-cap">—</span></div>
+			</section>
+			<section class="content-box" data-tone="cam">
+				<h2 class="input-box-til">Sky</h2>
+				<div id="sky_note" class="notice"></div>
+				<div class="tiles">
+					<div class="tile">
+						<div class="tile-label">Cloud cover</div>
+						<div class="tile-value" id="s-cloud">—</div>
+						<div class="tile-sub" id="s-cloud-sub"></div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Daylight</div>
+						<div class="tile-value" id="s-day">—</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Luma</div>
+						<div class="tile-value" id="s-luma">—</div>
+					</div>
 				</div>
+			</section>
+			<section class="content-box">
+				<h2 class="input-box-til">Actions</h2>
 				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="uploadNow()">Upload now</button>
-					<button type="button" class="common-btn" onclick="retryCam()">Retry camera</button>
+					<button type="button" class="common-btn" onclick="postAction('/upload_now', 'Uploading')">Upload now</button>
+					<button type="button" class="common-btn" onclick="postAction('/retry_camera', 'Retrying camera')">Retry camera</button>
+					<button type="button" class="common-btn" onclick="measureNow()">Measure now</button>
 				</div>
 			</section>
 		</div>
@@ -81,12 +123,6 @@
 <script src="./axjs.js"></script>
 <script>
 	let loading = new Loading()
-
-	function setInd(sel, text, tone) {
-		let el = document.querySelector(sel)
-		el.textContent = text
-		el.className = tone ? ('ind ' + tone) : 'ind'
-	}
 
 	function resetTone(reason) {
 		if (reason === 'PANIC' || reason === 'INT_WDT' || reason === 'TASK_WDT' ||
@@ -99,68 +135,130 @@
 		return ''
 	}
 
-	window.onHealth = function (res) {
-		document.querySelector('#h-mac').innerText = res.sta_mac || '—'
+	function paintConnection(res) {
+		let hasRssi = res.rssi !== null && res.rssi !== undefined
 		let rssiTone = 'err'
-		let rssiTxt = 'not connected'
-		if (res.rssi !== null && res.rssi !== undefined) {
-			rssiTxt = res.rssi + ' dBm (' + (res.rssi_label || '') + ')'
-			if (res.rssi_label === 'good') rssiTone = 'ok'
-			else if (res.rssi_label === 'fair') rssiTone = 'warn'
-			else rssiTone = 'err'
-		}
-		setInd('#h-rssi', rssiTxt, rssiTone)
-		document.querySelector('#h-uptime').innerText = fmtUptime(res.uptime_s)
-		document.querySelector('#h-heap').innerText = fmtBytes(res.heap_free)
-		let ps = fmtBytes(res.psram_free)
-		if (res.psram_size)
-			ps += ' / ' + fmtBytes(res.psram_size)
-		document.querySelector('#h-psram').innerText = ps
-		setInd('#h-cam', res.camera_ok == 1 ? 'ok' : 'down', res.camera_ok == 1 ? 'ok' : 'err')
+		if (res.rssi_label === 'good')
+			rssiTone = 'ok'
+		else if (res.rssi_label === 'fair')
+			rssiTone = 'warn'
+		setTile('#h-rssi', hasRssi ? res.rssi + ' dBm' : 'not connected', rssiTone)
+		setSub('#h-rssi-sub', hasRssi ? res.rssi_label : '')
+		setTile('#h-ssid', res.ssid || '(none)')
 		let link = res.sta_link || ''
-		let net = (res.ssid || '(none)') + '  ' + (res.sta_ip || '')
-		if (link && link !== 'up' && link !== 'idle')
-			net += '  (' + link + ')'
-		document.querySelector('#h-net').innerText = net
-		let upTone = ''
-		if (res.last_upload_age_s >= 0)
-			upTone = res.last_upload_ok == 1 ? 'ok' : 'err'
-		setInd('#h-upload', healthUploadText(res), upTone)
+		setSub('#h-link', (link && link !== 'up' && link !== 'idle') ? link : '')
+		setTile('#h-ip', res.sta_ip || '—')
+		let camOk = res.camera_ok == 1
+		setTile('#h-cam', camOk ? 'ok' : 'down', camOk ? 'ok' : 'err')
+		if (res.last_upload_age_s < 0) {
+			setTile('#h-upload', 'never')
+			setSub('#h-upload-sub', '')
+			return
+		}
+		let upOk = res.last_upload_ok == 1
+		setTile('#h-upload', fmtAge(res.last_upload_age_s), upOk ? 'ok' : 'err')
+		setSub('#h-upload-sub', (upOk ? 'ok' : 'fail') + (res.last_upload_msg ? ' — ' + res.last_upload_msg : ''))
+	}
+
+	function paintDevice(res) {
+		setTile('#h-mac', res.sta_mac || '—')
+		setTile('#h-uptime', fmtUptime(res.uptime_s))
+		setTile('#h-heap', fmtBytes(res.heap_free))
+		setTile('#h-psram', fmtBytes(res.psram_free))
+		setSub('#h-psram-sub', res.psram_size ? 'of ' + fmtBytes(res.psram_size) : '')
 		let reason = res.reboot_reason || '—'
-		setInd('#h-reset', reason, resetTone(reason))
-		document.querySelector('#h-cause').innerText = res.prev_cause || '—'
-		let camFail = res.cam_fail || 0
-		let upFail = res.up_fail || 0
-		let streakTone = 'ok'
-		if (camFail >= (res.wd_cam_n || 0) || upFail >= (res.wd_up_n || 0))
-			streakTone = 'err'
-		else if (camFail || upFail)
-			streakTone = 'warn'
-		setInd('#h-streak',
-			'camera ' + camFail + ' / ' + (res.wd_cam_n || 0) +
-			'   upload ' + upFail + ' / ' + (res.wd_up_n || 0),
-			streakTone)
-		let cap = (res.wd_reboots || 0) + ' / ' + (res.wd_cap_n || 0) +
-			' in ' + (res.wd_cap_m || 0) + ' min'
-		let capTone = 'ok'
-		if (res.wd_held_off == 1) {
-			cap += '  (holding — staying up)'
-			capTone = 'warn'
-		}
-		if (res.wd_en != 1) {
-			cap += '  (watchdog off)'
-			capTone = ''
-		} else if ((res.wd_reboots || 0) > 0 && res.wd_held_off != 1) {
-			capTone = 'warn'
-		}
-		setInd('#h-cap', cap, capTone)
+		setTile('#h-reset', reason, resetTone(reason))
+		setTile('#h-cause', res.prev_cause || '—')
 	}
 
-	function uploadNow() {
-		loading.show('Uploading')
+	function pollHealth() {
+		ajax({
+			url: '/get_health',
+			success: function (res) {
+				if (!res)
+					return
+				paintConnection(res)
+				paintDevice(res)
+				paintWatchdog(res)
+			}
+		})
+	}
+
+	function clearSky(note) {
+		document.querySelector('#sky_note').textContent = note
+		setTile('#s-cloud', '—')
+		setSub('#s-cloud-sub', '')
+		setTile('#s-day', '—')
+		setTile('#s-luma', '—')
+	}
+
+	function paintSky(res) {
+		if (!res || res.valid === 0) {
+			clearSky('No measurement yet. Measure now, or enable sky stats and wait for an upload.')
+			return
+		}
+		if (res.status === 0 && res.msg) {
+			clearSky(res.msg)
+			return
+		}
+		document.querySelector('#sky_note').textContent = ''
+		let day = 'Unknown'
+		let dayTone = 'warn'
+		if (res.day === true) {
+			day = 'Day'
+			dayTone = 'ok'
+		} else if (res.day === false) {
+			day = 'Night'
+		}
+		setTile('#s-day', day, dayTone)
+		let hasCloud = res.cloud_pct !== null && res.cloud_pct !== undefined
+		setTile('#s-cloud', hasCloud ? res.cloud_pct + '%' : '—', hasCloud ? 'ok' : 'warn')
+		let why = ''
+		if (!hasCloud) {
+			if (res.day === false)
+				why = 'not reported at night'
+			else if (res.day === null)
+				why = 'daylight unknown'
+			else
+				why = 'not enough usable sky'
+		}
+		setSub('#s-cloud-sub', why)
+		setTile('#s-luma', (res.luma === null || res.luma === undefined) ? '—' : String(res.luma))
+	}
+
+	function loadSky() {
+		ajax({
+			url: '/get_sky_stats',
+			success: paintSky,
+			error: function () {
+				toast({ txt: 'Could not load sky stats', type: 'error' })
+			}
+		})
+	}
+
+	function measureNow() {
+		loading.show('Measuring')
+		ajax({
+			url: '/get_sky_stats',
+			data: { fresh: 1 },
+			success: function (res) {
+				loading.hide()
+				paintSky(res)
+				if (res && res.status === 0)
+					toast({ txt: res.msg || 'Measure failed', type: 'error' })
+			},
+			error: function (err) {
+				loading.hide()
+				toast({ txt: err == 429 ? 'Busy, wait a few seconds' : 'Measure failed', type: 'error' })
+			}
+		})
+	}
+
+	function postAction(url, busyTxt) {
+		loading.show(busyTxt)
 		ajax({
 			method: 'post',
-			url: '/upload_now',
+			url: url,
 			data: {},
 			success: function (res) {
 				loading.hide()
@@ -168,6 +266,7 @@
 					txt: (res && res.msg) ? res.msg : 'Done',
 					type: (res && res.status == 1) ? 'success' : 'error'
 				})
+				pollHealth()
 			},
 			error: function (err) {
 				loading.hide()
@@ -176,24 +275,8 @@
 		})
 	}
 
-	function retryCam() {
-		loading.show('Retrying camera')
-		ajax({
-			method: 'post',
-			url: '/retry_camera',
-			data: {},
-			success: function (res) {
-				loading.hide()
-				toast({
-					txt: (res && res.msg) ? res.msg : 'Done',
-					type: (res && res.status == 1) ? 'success' : 'error'
-				})
-			},
-			error: function (err) {
-				loading.hide()
-				toast({ txt: err, type: 'error' })
-			}
-		})
-	}
+	pollHealth()
+	setInterval(pollHealth, 15000)
+	loadSky()
 </script>
 </html>
