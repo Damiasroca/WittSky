@@ -1,249 +1,177 @@
-# HP10 firmware replacement via OTA server impersonation
+# Install WittSky without opening the camera
 
-This document describes how to install arbitrary firmware on an HP10 weather
-camera by impersonating Ecowitt's over-the-air update infrastructure on a
-laptop-controlled network. No JTAG, serial bootloader, or physical disassembly
-is required. The camera's stock OTA client resolves its update endpoints through
-whatever DNS the network hands it; by owning that network you redirect those
-endpoints to the host, return a crafted version manifest, and serve a firmware
-image of your choosing.
+A stock HP10 checks Ecowitt's servers for a firmware update, then downloads whatever file those servers name. This folder makes your PC play that role on a small Wi-Fi network of its own. The camera joins that network, asks for an update, and is handed `WittSky_<version>.bin`. Nothing is soldered and the case stays closed.
 
-Scope: this targets hardware you own on a network you control. Everything below
-assumes an isolated bench setup.
+Do this only on a camera you own, on a network you control. The access point is isolated on purpose: the camera can talk to your PC, and to nothing else.
 
-## Principle of operation
+## What the camera does, in plain terms
 
-The stock client performs two independent HTTP exchanges against two distinct
-Ecowitt hosts:
+When you press the stock upgrade button, the camera makes two requests:
 
-- a **version check** against `ota.ecowitt.net` (the manifest API), and
-- an **artifact download** against `oss.ecowitt.net` (the object store holding
-  the binary).
+1. It asks `ota.ecowitt.net` whether a newer version exists.
+2. If the answer says yes, it downloads the file from `oss.ecowitt.net`.
 
-Both must be redirected. Spoofing only the manifest host gets you a "new version
-available" state that then fails at download, because the image URL in the
-manifest resolves to a host you don't control. The client also downgrades the
-artifact URL from `https` to `http` before fetching, so the entire transaction
-happens in cleartext on port 80 — which is precisely why a host with no TLS
-termination and no trusted certificate can complete it.
+Both names have to land on your PC. If only the first one does, the camera will report a new version and then fail to download it. The camera also turns the download link from `https` into plain `http` on port 80, so your PC can serve the file without a certificate.
 
-The interception is assembled from four cooperating services on the host: DHCP
-(to place the camera on the subnet and advertise the host as its resolver), DNS
-(to answer the two Ecowitt hostnames), and an HTTP server that serves both the
-manifest and the image. A raw-socket traffic tap runs alongside for observability.
+Your PC runs four small services to make that happen: a Wi-Fi access point, DHCP (so the camera gets an address and is told to use your PC for DNS), DNS (so those two Ecowitt names point at your PC), and a web server (the version answer and the `.bin` file).
 
-## Requirements
+## What you need
 
-- Windows 11 host.
-- A USB WLAN adapter that advertises Windows hosted-network support (see below).
-  The built-in adapter is, on current hardware, unlikely to qualify.
-- The HP10 (validated here against stock V1.0.9) and access to its Wi-Fi
-  provisioning mode.
-- Python 3 available on `PATH`.
-- The project tree: `run.ps1`, `settings.env`, and the core modules
-  (`__main__.py`, `dhcp.py`, `dns.py`, `http_ota.py`, `settings.py`, `tap.py`).
-- The replacement image at `firmware/fw.bin`.
+- Windows 11.
+- A USB Wi-Fi adapter that can host a network. Most built-in laptop radios cannot. Check before you go further (next section).
+- Python 3 on `PATH`.
+- The WittSky application image, for example `WittSky_1.0.3.bin` from a local build (`firmware/build/`) or from the GitHub release. It must be the app `.bin`, not an ELF and not a full-chip dump.
+- The camera still running stock firmware, and you able to open its web page (its own `HP10-WIFI` network) so you can point it at the lab network and start the upgrade.
 
-## Adapter constraints
+## 1. Check that the adapter can host a network
 
-Windows exposes two mechanisms for acting as an access point, and only one of
-them leaves DHCP and DNS under your control:
+Windows has two ways to share Wi-Fi. Mobile Hotspot will not work here: it runs its own DHCP and you cannot redirect `ota.ecowitt.net`. The method that works is the older "hosted network", and the adapter has to support it.
 
-- **Mobile Hotspot** runs on top of Internet Connection Sharing. ICS imposes its
-  own DHCP scope and pins clients to a fixed resolver at `192.168.137.1` with no
-  per-host override. It cannot be used to redirect a specific hostname.
-- **Hosted network** (the legacy SoftAP exposed through `netsh wlan
-  set/start hostednetwork`) creates a virtual adapter you address directly. Bring
-  it up *without* ICS and Windows runs no DHCP or DNS on it, which is exactly the
-  blank slate this setup depends on.
+In an Administrator PowerShell window:
 
-Hosted network is therefore the required path, and it depends on driver support
-that recent Intel parts no longer expose. Confirm before committing to a device:
-
-```
+```powershell
 netsh wlan show drivers
 ```
 
-The determining line is:
+Look for this line:
 
-```
+```text
 Hosted network supported  : Yes
 ```
 
-An Intel AX211 reports `No`. A Ralink- or Realtek-based dongle that still reports
-`Yes` is the workable option. Treat that line as a hard gate — without it, none
-of the following applies.
+If it says `No`, that adapter cannot be used. Recent Intel cards (an AX211, for example) report `No`.
 
-## Radio arbitration
+The dongle used for this guide is an **Alfa AWUS036NEH**. On this PC, `netsh wlan show drivers` reports it as:
 
-Hosted network is a single, global instance, and Windows binds it to one radio
-of its choosing. With two capable-looking adapters present it may bind to the
-built-in card, and if that card cannot host, `netsh wlan start hostednetwork`
-fails with:
-
+```text
+Driver                    : 802.11n USB Wireless LAN Card
+Vendor                    : Ralink Technology, Corp.
+Provider                  : Microsoft
+Date                      : 14/8/2007
+Version                   : 5.1.22.0
+INF file                  : netr28ux.inf
+Hosted network supported  : Yes
 ```
+
+If the PC has both a built-in radio and the dongle, Windows may try to host on the built-in one and fail with:
+
+```text
 The group or resource is not in the correct state to perform the requested operation.
 ```
 
-This is a binding-target problem, not a driver fault. Remove the ambiguity by
-disabling the built-in interface so the dongle is the only candidate. Do this
-**before** invoking `run.ps1`:
+Turn the built-in adapter off so the dongle is the only choice. The name `WiFi` below is typical; check yours with `netsh interface show interface`.
 
-```
+```powershell
 netsh interface set interface name="WiFi" admin=disable
 ```
 
-`WiFi` is the built-in AX211 here; the dongle enumerated as `WiFi 2`. Confirm the
-names on your host with `netsh interface show interface`. Restore the built-in
-adapter when finished:
+Turn it back on when you are finished:
 
-```
+```powershell
 netsh interface set interface name="WiFi" admin=enable
 ```
 
-## Configuration
+## 2. Put the firmware where the server expects it
 
-Edit `settings.env`. The values that carry meaning for the interception:
+From the `OTA_SPOOF` folder, copy the example settings and place the image next to them:
 
-- `SSID` / `PSK` — the AP identity. Hosted network is WPA2-PSK/CCMP only; the
-  passphrase must be 8–63 characters.
-- `AP_IP` — the host's address on the AP subnet. It serves simultaneously as
-  gateway, resolver, and HTTP origin; every redirected hostname points here.
-- `OTA_HOST` (`ota.ecowitt.net`) — the manifest host.
-- `FW_HOST` (`oss.ecowitt.net`) — the artifact host. Both `OTA_HOST` and
-  `FW_HOST` resolve to `AP_IP`.
-- `FW_VERSION` — returned as `data.name` and compared against the running
-  version. It must outrank what's installed for the client to treat it as new;
-  `V9.9.9` is a safe sentinel.
-- `FW_PATH` — the served image, relative to the project root or absolute.
-- `QUERY_INTVAL` — returned as `data.queryintval`. Values outside 300–86368 are
-  ignored by the client, which then falls back to its default poll interval.
-
-## Bring-up
-
-1. Disable the built-in WLAN adapter (previous section) and connect the dongle.
-
-2. **Terminal 1 (elevated) — access point:**
-
-   ```
-   .\run.ps1
-   ```
-
-   This starts the hosted network (WPA2/CCMP, no ICS), waits for the virtual
-   adapter, assigns `AP_IP` to it, enables the weak host model on the relevant
-   interfaces, and opens inbound firewall rules for UDP 53/67 and TCP 80. If
-   script execution is blocked, invoke it as
-   `powershell -ExecutionPolicy Bypass -File .\run.ps1` rather than relaxing the
-   machine policy. Leave it resident; teardown happens on exit.
-
-3. **Terminal 2 (elevated) — service core:**
-
-   ```
-   python .\__main__.py
-   ```
-
-   Elevation is mandatory: the tap opens a raw socket in promiscuous mode
-   (`SIO_RCVALL`), and DHCP/DNS bind privileged ports. The core starts the tap,
-   DHCP, DNS, and HTTP services.
-
-4. Join the camera to the configured SSID through its provisioning flow. A lease
-   should appear in the DHCP log within a few seconds.
-
-5. Trigger the update, either from the camera's web UI (**Check firmware**, then
-   **Upgrade**) or directly:
-
-   ```
-   Invoke-WebRequest -Uri http://<camera-ip>/upgrade_process -Method POST -Body '{"upgrade":"check"}' -ContentType application/json
-   Invoke-WebRequest -Uri http://<camera-ip>/upgrade_process -Method POST -Body '{"upgrade":"start"}' -ContentType application/json
-   ```
-
-## Expected transaction
-
-A successful run produces this sequence in the core log:
-
+```powershell
+cd OTA_SPOOF
+copy settings.env.example settings.env
+copy ..\firmware\build\WittSky_1.0.3.bin firmware\fw.bin
 ```
+
+`firmware\` under `OTA_SPOOF` is the default location. It is gitignored. If you would rather point at the build output directly, set `FW_PATH` in `settings.env` to that file. A relative path is resolved from the `OTA_SPOOF` folder.
+
+Open `settings.env` and set at least these:
+
+| Setting | What to put |
+| --- | --- |
+| `SSID` | Name of the lab network. No spaces. The camera will join this. |
+| `PSK` | Password, 8 to 63 characters. The network is WPA2. |
+| `FW_VERSION` | A version the stock UI will treat as newer than what is installed. `V9.9.9` is a safe choice against stock `V1.1.1`. |
+| `FW_CONTENT` | The short note shown in the stock upgrade dialog. |
+| `FW_PATH` | The image to serve. Default `firmware/fw.bin` is fine if you copied the file there. |
+
+Leave `OTA_HOST`, `FW_HOST`, `AP_IP`, and the DHCP range alone unless you know you need different addresses. `AP_IP` (`192.168.50.1` by default) is the address of your PC on this network. The camera is told to use that same address as its gateway and its DNS server.
+
+## 3. Start the access point
+
+Open **PowerShell as Administrator**, go to `OTA_SPOOF`, and leave this window running:
+
+```powershell
+cd OTA_SPOOF
+.\run.ps1
+```
+
+If Windows blocks the script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+The script creates the hosted network, gives it `AP_IP`, and opens the firewall for DHCP, DNS, and HTTP. It stays in the foreground until you press Ctrl+C, and it tears the network down when it exits.
+
+You should see a line like `AP is up. Point the HP10 at SSID 'hp10lab'.`
+
+## 4. Start the update server
+
+Open a **second Administrator PowerShell**, from the repository root:
+
+```powershell
+python -m OTA_SPOOF.main
+```
+
+From inside `OTA_SPOOF` this also works:
+
+```powershell
+python .\main.py
+```
+
+It has to be elevated. DHCP and DNS bind to privileged ports, and the traffic log opens a raw socket. Leave this window running too.
+
+On startup it prints the address it is spoofing, the version it will offer, and the size of the firmware file. If it says `FAIL firmware missing`, the path in `FW_PATH` is wrong. Fix that before you continue.
+
+## 5. Point the camera at the lab network and upgrade
+
+1. Join the camera's own `HP10-WIFI` network and open its web page.
+2. On the stock Network page, join the lab SSID (`hp10lab`, or whatever you set).
+3. In the Python window you should see a DHCP line within a few seconds, offering an address such as `192.168.50.50`.
+4. Open the camera again, this time on the address it just received, and run the stock firmware upgrade (**Check firmware**, then **Upgrade**).
+
+The script does not press that button for you.
+
+A successful run looks like this in the Python window:
+
+```text
 [dhcp] ... REQUEST ... -> ACK 192.168.50.50 (dns 192.168.50.1)
 [dns]  192.168.50.50 A ota.ecowitt.net -> 192.168.50.1
 [http] 192.168.50.50 version/info -> V9.9.9 ...
 [dns]  192.168.50.50 A oss.ecowitt.net -> 192.168.50.1
-[http] 192.168.50.50 HEAD firmware (1520448 bytes)
-[http] 192.168.50.50 GET  firmware (1520448 bytes)
+[http] 192.168.50.50 HEAD firmware (1714144 bytes)
+[http] 192.168.50.50 GET  firmware (1714144 bytes)
 ```
 
-Each line is diagnostic. The ACK confirms the camera accepted the host as its
-resolver. The `ota.ecowitt.net` lookup and `version/info` response confirm the
-manifest exchange. The `oss.ecowitt.net` lookup is the pivotal one: it means the
-client parsed the manifest, accepted the offered version, and returned to fetch
-the artifact. The `HEAD` and `GET` complete the transfer, after which the client
-validates and commits the image.
+The first DNS line is the version check. The second DNS line, for `oss.ecowitt.net`, means the camera accepted the offer and came back for the file. `HEAD` then `GET` is the download. After that the camera checks the image and reboots into it.
 
-## Protocol detail
+## If something does not happen
 
-**DHCP.** Offers and acknowledgements carry options 53 (message type), 54
-(server identifier), 51 (lease time), 1 (subnet mask), 3 (router), and 6 (DNS).
-Router and DNS are both set to `AP_IP`; option 6 is what routes the camera's
-name resolution through the host. Replies are broadcast to `255.255.255.255:68`.
+**The hosted network will not start.** The radio Windows picked cannot host. Disable the built-in adapter (step 1) so only the dongle is left, then run `run.ps1` again.
 
-**DNS.** The resolver answers `A` queries for `OTA_HOST` and `FW_HOST` with
-`AP_IP` and returns `NXDOMAIN` for everything else. Routine noise (NTP hostnames)
-is resolved-as-refused without logging to keep the trace readable.
+**The camera joins, but there is no DHCP line.** The Python window is not running, or it is not elevated. Both windows have to be Administrator.
 
-**Version manifest.** `GET /api/ota/v1/version/info` returns JSON with `code: 0`
-and a `data` object containing `name` (the offered version, compared against the
-running one), `content` (changelog text surfaced in the UI), `attach1file` (the
-image URL), and `queryintval`. The `is_new` decision hinges on the version
-comparison against `data.name`; a manifest that reaches the client but offers an
-equal-or-lower `name` yields "latest version" rather than an upgrade prompt.
+**Check firmware says you are already on the latest version.** The camera caches the last answer. Power-cycle it and check again. Also confirm `FW_VERSION` is a string the stock UI will treat as newer than the installed one (`V9.9.9` against `V1.1.1`).
 
-**Artifact fetch.** `attach1file` is expressed as an `https://` URL on `FW_HOST`.
-The client rewrites the scheme to `http` and fetches on port 80. It first issues
-a `HEAD` to size the object; that response must present the literal status line
-`HTTP/1.1 200 OK` and a `Content-Length:` header, or the client reads the size as
-zero and aborts with "Get Firmware failed." A correct `Content-Length` on both
-the `HEAD` and the subsequent `GET` is therefore mandatory. The server streams
-the image on the `GET`, and the client flashes on completion.
+**A new version is offered, then the download fails, and there is no `HEAD` line.** The camera is fetching the file from the real `oss.ecowitt.net` instead of your PC. Leave `FW_HOST=oss.ecowitt.net` as it is in the example, and do not change it to a name you do not also spoof.
 
-## Operational notes and failure modes
+**The download finishes and the camera rejects the file.** The bytes were not an application image. Serve `WittSky_<version>.bin` (or a dump of a single OTA slot). An ELF or a full 4 MB chip dump will be refused.
 
-- **`start hostednetwork` reports "not in the correct state."** The instance
-  bound to a non-hosting radio. Disable the built-in adapter so the dongle is the
-  sole candidate.
-- **The web check reports the running version as current despite a changed
-  manifest.** The client caches the check result and only re-queries on reboot or
-  its own timer. Power-cycle the camera to force a fresh fetch after any manifest
-  change.
-- **`is_new` remains false though the check reached the host.** V1.0.9 reads the
-  offered version from `data.name`; ensure it is present and outranks the
-  installed version. Older reconstructions referenced `data.version`; populating
-  both is harmless if the field in use is uncertain.
-- **"Get Firmware failed" with no HEAD in the log.** `FW_HOST` is unspoofed, so
-  the artifact hostname resolves off-host and the `HEAD` never reaches you.
-  Redirect `oss.ecowitt.net` to `AP_IP` and point `attach1file` at it.
-- **UDP services drop after a burst of refused lookups.** An ICMP
-  port-unreachable elicited by a prior datagram causes Windows to surface
-  `WSAECONNRESET` on the next `recvfrom`. The core suppresses this via
-  `SIO_UDP_CONNRESET`; any reimplementation must do the same or the sockets will
-  fault under load.
-- **Traffic between the camera and `AP_IP` behaves inconsistently across the two
-  adapters.** `run.ps1` enables the weak host model (`weakhostsend` /
-  `weakhostreceive`) so the host accepts and originates packets on `AP_IP`
-  regardless of which interface handles them. This is required in the dual-adapter
-  topology.
-- **The tap prints nothing.** Raw-socket capture requires an elevated context;
-  run Terminal 2 as Administrator.
-- **The transfer completes but the flash is rejected.** This is past the network
-  boundary. The bootloader validates the image descriptor before committing, and
-  secure boot — if provisioned — rejects unsigned images irrespective of how they
-  were delivered. Build with an application version that exceeds the running one
-  to avoid a rollback rejection, and confirm secure boot is disabled before
-  expecting an unsigned image to be accepted.
+## When you are done
 
-## Teardown
+Press Ctrl+C in both windows. `run.ps1` removes the firewall rules and stops the hosted network as it exits. Then turn the built-in adapter back on:
 
-Interrupt both terminals with Ctrl+C. `run.ps1` removes the firewall rules,
-releases `AP_IP`, and stops the hosted network on exit. Restore the built-in
-adapter:
-
-```
+```powershell
 netsh interface set interface name="WiFi" admin=enable
 ```
+
+The camera should now be running WittSky. Later updates use the System page on the camera, or this same procedure again. If the camera will not boot at all, the serial recovery in the repository [README](../README.md#recovery--restoring-stock-firmware) puts stock firmware back.
