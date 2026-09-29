@@ -5,6 +5,33 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Network</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
+	<style>
+		.ssid-row { display: flex; align-items: center; gap: 10px; }
+		.ssid-box { position: relative; flex: 1; min-width: 0; }
+		.scan-btn { min-width: 0; white-space: nowrap; }
+		#wifiListWrap {
+			display: none; position: absolute; left: 0; top: 100%;
+			border-radius: 6px; width: 100%; overflow: hidden; z-index: 5;
+		}
+		.wifi-list-wrap { max-height: 400px; width: 100%; overflow-y: auto; }
+		.wifi-list {
+			background: var(--raised); display: flex; flex-direction: column;
+			width: 100%; border: 1px solid var(--line); border-radius: 8px;
+		}
+		.wifi-list .wifi-list-item {
+			font-size: 14px; padding: 10px 14px; width: 100%;
+			cursor: pointer; color: var(--text); display: flex; align-items: center;
+		}
+		.wifi-list .wifi-list-item:hover { background: var(--surface); }
+		#apLeases, #apLog {
+			white-space: pre-wrap;
+			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+			font-size: 13px; line-height: 1.45;
+		}
+		#apLog { max-height: 160px; overflow: auto; }
+		.ap-more-body { display: grid; gap: 6px; padding: 0 14px 12px; }
+	</style>
 </head>
 <body>
 	<div class="wrap">
@@ -14,8 +41,10 @@
 				<h1 class="page-til">Network</h1>
 				<p class="page-sub">Router Wi-Fi, name on the LAN, and the device access point.</p>
 			</header>
-			<section class="content-box" data-tone="ok">
+			<section class="content-box">
 				<h2 class="input-box-til">Wi-Fi</h2>
+
+				<h3 class="tile-group">Status</h3>
 				<div class="tiles">
 					<div class="tile">
 						<div class="tile-label">IP address</div>
@@ -30,9 +59,11 @@
 						<div class="tile-value" id="wifi_gateway">—</div>
 					</div>
 				</div>
+
+				<h3 class="tile-group">Router</h3>
 				<div class="fields">
 					<div class="field wide">
-						<label class="field-label" for="ssid">Router SSID</label>
+						<label class="field-label" for="ssid">SSID</label>
 						<div class="ssid-row">
 							<div class="ssid-box">
 								<input type="text" id="ssid" />
@@ -42,36 +73,37 @@
 									</div>
 								</div>
 							</div>
-							<button type="button" id="scanBtn" class="common-btn scan-btn" onclick="scanRouter()">Scan Router</button>
+							<button type="button" id="scanBtn" class="common-btn scan-btn" onclick="scanRouter()">Scan</button>
 						</div>
 					</div>
 					<div class="field">
 						<label class="field-label" for="wifi_pwd">Password</label>
 						<input type="password" id="wifi_pwd" maxlength="63" />
 						<label class="pwd-label"><input type="checkbox" autocomplete="off" onchange="togglePwd(this, 'wifi_pwd')">Show password</label>
-						<div class="pwd-des">If your router is dual-band, connect to the 2.4 GHz band.</div>
+						<div class="hint">If your router is dual-band, connect to the 2.4 GHz band.</div>
 					</div>
 				</div>
 				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="setWifiData()">Apply</button>
+					<button type="button" class="common-btn" onclick="setWifiData()">Save router</button>
 				</div>
-			</section>
-			<section class="content-box" data-tone="net">
-				<h2 class="input-box-til">Hostname</h2>
+
+				<h3 class="tile-group">Hostname</h3>
 				<div class="fields">
 					<div class="field wide">
 						<label class="field-label" for="mdns_host">mDNS name</label>
 						<input type="text" id="mdns_host" maxlength="31" placeholder="WittSky-Camera" />
-						<div class="pwd-des">http://<span id="mdns-preview">camera</span>.local on the LAN after the router assigns an IP. Letters, digits, hyphen. Two devices with the same name will collide.</div>
+						<div class="hint">http://<span id="mdns-preview">camera</span>.local on the LAN. Letters, digits, hyphen. Two devices with the same name will collide.</div>
 					</div>
 				</div>
 				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="setMdns()">Apply</button>
+					<button type="button" class="common-btn" onclick="setMdns()">Save hostname</button>
 				</div>
 			</section>
-			<section class="content-box" data-tone="warn">
+			<section class="content-box">
 				<h2 class="input-box-til">Access point</h2>
 				<div id="apNote" class="notice"></div>
+
+				<h3 class="tile-group">Status</h3>
 				<div class="tiles">
 					<div class="tile">
 						<div class="tile-label">State</div>
@@ -91,10 +123,8 @@
 						<div class="tile-value" id="apClients">—</div>
 					</div>
 				</div>
-				<div class="btn-box">
-					<button type="button" class="common-btn" id="apToggle" data-on="1" onclick="setApNow()">Turn off</button>
-					<div class="pwd-des">Turn off takes effect immediately while the camera is on the router, and that choice is kept across reboot. If the router link drops, SoftAP comes back on its own. Join through the router before turning it off, or this page drops.</div>
-				</div>
+
+				<h3 class="tile-group">Configuration</h3>
 				<div class="fields">
 					<div class="field wide">
 						<span class="field-label">Auto off</span>
@@ -102,9 +132,12 @@
 					</div>
 				</div>
 				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="setApAuto()">Apply</button>
+					<button type="button" class="common-btn" id="apToggle" data-on="1" onclick="setApNow()">Turn off</button>
+					<button type="button" class="common-btn" onclick="setApAuto()">Save auto off</button>
+					<div class="hint">Join through the router before turning it off, or this page drops.</div>
 				</div>
-				<details class="ap-more">
+
+				<details class="advanced">
 					<summary>Clients and log</summary>
 					<div class="ap-more-body">
 						<div class="field-label">IPs leased</div>
@@ -186,16 +219,11 @@
 			data: params,
 			success: function (res) {
 				loading.hide()
-				if (res.status === '0')
-					toast({ txt: 'Connection successful.', type: 'success' })
-				else if (res.status === '1')
-					modal.show('SSID cannot be found. Please check the SSID is correct and is 2.4G band.')
-				else if (res.status === '2')
-					modal.show('The password is wrong. Please enter the correct password.')
-				else if (res.status === '3')
-					modal.show('Connection timeout. Please check the password is correct.')
-				else if (res.status === '4')
-					modal.show('Connection failed. Please check the password is correct.')
+				if (res.status === '0') toast({ txt: 'Connection successful.', type: 'success' })
+				else if (res.status === '1') modal.show('SSID cannot be found. Please check the SSID is correct and is 2.4G band.')
+				else if (res.status === '2') modal.show('The password is wrong. Please enter the correct password.')
+				else if (res.status === '3') modal.show('Connection timeout. Please check the password is correct.')
+				else if (res.status === '4') modal.show('Connection failed. Please check the password is correct.')
 				getWifiData()
 			},
 			error: function (err) {
@@ -213,15 +241,13 @@
 			url: '/usr_scan_ssid_list',
 			success: function (res) {
 				scanBtn.disabled = false
-				scanBtn.innerText = 'Scan Router'
-				if (res.status == '0')
-					scanRouterData(res.list)
-				else
-					toast({ txt: res.msg, type: 'error' })
+				scanBtn.innerText = 'Scan'
+				if (res.status == '0') scanRouterData(res.list)
+				else toast({ txt: res.msg, type: 'error' })
 			},
 			error: function (err) {
 				scanBtn.disabled = false
-				scanBtn.innerText = 'Scan Router'
+				scanBtn.innerText = 'Scan'
 				if (err == 0 || err == 404)
 					toast({ txt: 'There is an error in the network, please check.', type: 'error' })
 			}
@@ -277,27 +303,23 @@
 	}
 
 	function paintAp(res) {
-		if (!res || res.ap_on === undefined)
-			return
+		if (!res || res.ap_on === undefined) return
 		let on = res.ap_on == 1
 		setTile('#apState', on ? 'ON' : 'OFF', on ? 'ok' : 'warn')
 		setTile('#apSsid', res.ap_ssid || '—')
 		let name = document.querySelector('#apName')
-		if (name && res.ap_ssid)
-			name.textContent = res.ap_ssid
+		if (name && res.ap_ssid) name.textContent = res.ap_ssid
 		setTile('#apAddr', on ? (res.ap_ip || '192.168.4.1') : '—')
 		setSub('#apAddr-sub', on && res.ap_ch ? 'channel ' + res.ap_ch : '')
 		setTile('#apClients', String(on ? (res.ap_clients || 0) : 0))
 		let leases = res.ap_leases || []
 		let leaseEl = document.querySelector('#apLeases')
-		if (!on || !leases.length)
-			leaseEl.textContent = 'none'
-		else
-			leaseEl.textContent = leases.map(function (c) {
-				let ip = c.ip ? c.ip : 'waiting'
-				let rssi = (c.rssi === 0 || c.rssi) ? '  ' + c.rssi + ' dBm' : ''
-				return (c.mac || '?') + '  ' + ip + rssi
-			}).join('\n')
+		if (!on || !leases.length) leaseEl.textContent = 'none'
+		else leaseEl.textContent = leases.map(function (c) {
+			let ip = c.ip ? c.ip : 'waiting'
+			let rssi = (c.rssi === 0 || c.rssi) ? '  ' + c.rssi + ' dBm' : ''
+			return (c.mac || '?') + '  ' + ip + rssi
+		}).join('\n')
 		let log = res.ap_log || []
 		let logEl = document.querySelector('#apLog')
 		logEl.textContent = log.length ? log.join('\n') : '—'
@@ -307,23 +329,13 @@
 		document.querySelector('#apNote').textContent =
 			recovery ? 'Saved off. Up because the router link is down.' : ''
 		let btn = document.querySelector('#apToggle')
-		if (!on) {
-			btn.dataset.on = '0'
-			btn.textContent = 'Turn on'
-		} else if (recovery) {
-			btn.dataset.on = '0'
-			btn.textContent = 'Keep on'
-		} else {
-			btn.dataset.on = '1'
-			btn.textContent = 'Turn off'
-		}
+		if (!on) { btn.dataset.on = '0'; btn.textContent = 'Turn on' }
+		else if (recovery) { btn.dataset.on = '0'; btn.textContent = 'Keep on' }
+		else { btn.dataset.on = '1'; btn.textContent = 'Turn off' }
 	}
 
 	function refreshAp() {
-		ajax({
-			url: '/get_health',
-			success: function (res) { paintAp(res) }
-		})
+		ajax({ url: '/get_health', success: function (res) { paintAp(res) } })
 	}
 
 	function setApNow() {
@@ -336,10 +348,7 @@
 			data: { apOn: on ? 0 : 1 },
 			success: function () {
 				btn.disabled = false
-				toast({
-					txt: on ? 'SoftAP off while the router link is up' : 'SoftAP on',
-					type: 'success'
-				})
+				toast({ txt: on ? 'SoftAP off while the router link is up' : 'SoftAP on', type: 'success' })
 				refreshAp()
 			},
 			error: function (err) {

@@ -5,6 +5,44 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>System</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
+	<style>
+		#tz_filter { margin-bottom: 2px; }
+		#current-version { white-space: pre-wrap; }
+		.btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+		.new-version { position: relative; }
+		.new-version::after {
+			content: ''; position: absolute; top: 10px; right: 10px;
+			height: 8px; width: 8px; border-radius: 50%; background-color: var(--err);
+			box-shadow: 0 0 0 3px rgba(224, 103, 95, .25);
+		}
+		#up-ver { display: none; }
+		.process-bg { position: fixed; inset: 0; background-color: transparent; }
+		#process { position: fixed; inset: 0; z-index: 80; }
+		.process-box {
+			position: absolute; width: min(460px, 92vw); min-height: 140px; top: 40%; left: 50%;
+			padding-bottom: 8px;
+			background: var(--raised); border: 1px solid var(--line);
+			border-radius: var(--radius); box-shadow: 0 18px 48px rgba(0, 0, 0, .4); z-index: 4;
+			transform: translate(-50%, -50%);
+		}
+		.process-p { font-size: 22px; font-weight: 650; color: var(--text); text-align: center; padding: 24px 0 12px; }
+		.process-flex { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 0 24px 20px; }
+		.process-txt { font-size: 15px; font-weight: 650; color: var(--text); width: 52px; text-align: right; }
+		.process-out { width: 400px; max-width: 70vw; height: 10px; background: var(--bg); border-radius: 20px; overflow: hidden; }
+		.process-in { width: 0; height: 10px; border-radius: 20px; background: var(--accent); }
+		.log-wrap { padding: 4px 24px 12px; }
+		#ws-log-box {
+			height: 220px; overflow-y: auto; background: var(--bg); color: var(--text);
+			border: 1px solid var(--line);
+			font-family: Consolas, "Courier New", monospace; font-size: 12px;
+			padding: 12px; border-radius: 10px; white-space: pre-wrap; word-break: break-all;
+		}
+		#ws-log-status { padding-bottom: 8px; font-size: 14px; font-weight: 650; }
+		@media (max-width: 760px) {
+			.log-wrap { padding: 4px 16px 8px; }
+		}
+	</style>
 </head>
 <body>
 	<div class="wrap">
@@ -20,14 +58,14 @@
 					<div class="field">
 						<label class="field-label" for="theme">Look</label>
 						<select id="theme"></select>
-						<div class="pwd-des">Stored on the camera. Original is used until you pick another.</div>
+						<div class="hint">Stored on the camera. Dark is used until you pick another.</div>
 					</div>
 				</div>
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="setTheme()">Apply</button>
 				</div>
 			</section>
-			<section class="content-box" data-tone="ok">
+			<section class="content-box">
 				<h2 class="input-box-til">Location &amp; time</h2>
 				<div class="tiles">
 					<div class="tile wide">
@@ -58,7 +96,7 @@
 						<select id="tz_iana" aria-label="Time zone">
 							<option value="">Loading timezones…</option>
 						</select>
-						<div class="pwd-des">IANA tz database. DST switches automatically (last Sunday of March / October in Europe, second Sunday of March / first Sunday of November in the US, and so on).</div>
+						<div class="hint">IANA tz database. DST switches automatically.</div>
 					</div>
 				</div>
 				<div class="btn-box">
@@ -67,21 +105,7 @@
 			</section>
 			<section class="content-box" data-tone="warn">
 				<h2 class="input-box-til">Watchdog</h2>
-				<div class="tiles">
-					<div class="tile">
-						<div class="tile-label">Camera failures</div>
-						<div class="tile-value" id="h-camfail">—</div>
-					</div>
-					<div class="tile">
-						<div class="tile-label">Upload failures</div>
-						<div class="tile-value" id="h-upfail">—</div>
-					</div>
-					<div class="tile">
-						<div class="tile-label">Auto-reboots</div>
-						<div class="tile-value" id="h-cap">—</div>
-						<div class="tile-sub" id="h-cap-sub"></div>
-					</div>
-				</div>
+				<p class="hint">Live counters are on the <a href="./status.html">Overview</a> page.</p>
 				<div class="fields">
 					<div class="field wide">
 						<span class="field-label">Auto-reboot</span>
@@ -98,7 +122,7 @@
 					<div class="field">
 						<label class="field-label" for="wd_cap_n">Reboot cap</label>
 						<input type="number" id="wd_cap_n" min="1" max="20" value="3" />
-						<div class="pwd-des">Auto-reboots allowed inside the window, then stay up.</div>
+						<div class="hint">Auto-reboots allowed inside the window, then stay up.</div>
 					</div>
 					<div class="field">
 						<label class="field-label" for="wd_cap_m">Cap window (min)</label>
@@ -109,7 +133,7 @@
 					<button type="button" class="common-btn" onclick="setWatchdog()">Apply</button>
 				</div>
 			</section>
-			<section class="content-box" data-tone="net">
+			<section class="content-box">
 				<h2 class="input-box-til">Logs</h2>
 				<div class="fields">
 					<div class="field">
@@ -126,12 +150,17 @@
 							<option value="5">Verbose</option>
 						</select>
 					</div>
-					<div class="field wide">
-						<label class="field-label" for="ws_log_url">WebSocket URL</label>
-						<input type="text" id="ws_log_url" maxlength="127" placeholder="/ws/log or ws://192.168.1.10:9000/logs" />
-						<div class="pwd-des">Path (served on port 82) or a remote ws:// / wss:// URL. Empty uses /ws/log.</div>
-					</div>
 				</div>
+				<details class="advanced">
+					<summary>Advanced — custom WebSocket URL</summary>
+					<div class="fields">
+						<div class="field wide">
+							<label class="field-label" for="ws_log_url">WebSocket URL</label>
+							<input type="text" id="ws_log_url" maxlength="127" placeholder="/ws/log or ws://192.168.1.10:9000/logs" />
+							<div class="hint">Path (served on port 82) or a remote ws:// / wss:// URL. Empty uses /ws/log.</div>
+						</div>
+					</div>
+				</details>
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="setWsLog()">Apply</button>
 				</div>
@@ -140,49 +169,47 @@
 					<div id="ws-log-box"></div>
 				</div>
 			</section>
-			<section class="content-box" data-tone="cam">
+			<section class="content-box">
 				<h2 class="input-box-til">Firmware</h2>
-				<div class="fields">
-					<div class="field">
-						<span class="field-label">Upgrade</span>
-						<label class="check"><input type="checkbox" id="upgrade" /> Automatically upgrade firmware</label>
+
+				<h3 class="tile-group">Over the air</h3>
+				<div class="tiles">
+					<div class="tile wide">
+						<div class="tile-label">Current version</div>
+						<div class="tile-value" id="current-version">—</div>
 					</div>
+				</div>
+				<div class="fields">
 					<div class="field wide">
-						<label class="field-label" for="ota_url">OTA URL</label>
-						<input type="text" id="ota_url" maxlength="127" placeholder="https://raw.githubusercontent.com/Damiasroca/WittSky/main/ota.json" />
-						<div class="pwd-des">Empty disables OTA. The camera checks this URL every 24 hours. JSON must include code, data.version, data.attach1file.</div>
+						<span class="field-label">Auto upgrade</span>
+						<label class="check"><input type="checkbox" id="upgrade" onchange="setAutoUpgrade()" /> Install new firmware automatically when a check finds one</label>
 					</div>
 				</div>
 				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="setUpgrade()">Apply</button>
+					<button type="button" id="check-ver" class="common-btn" onclick="checkVersion()">Check for updates</button>
+					<button type="button" id="up-ver" class="common-btn" onclick="upVersion()">Install update</button>
 				</div>
+
+				<h3 class="tile-group">Flash from PC</h3>
 				<div class="fields">
 					<div class="field wide">
-						<span class="field-label">Version</span>
-						<div class="version-box" id="current-version"></div>
-						<div class="btn-row">
-							<button type="button" id="check-ver" class="common-btn version-btn" onclick="checkVersion()">Check firmware</button>
-							<button type="button" id="up-ver" class="common-btn version-btn" onclick="upVersion()">Upgrade Version</button>
-						</div>
-					</div>
-					<div class="field wide">
-						<label class="field-label" for="fw_file">Flash from PC</label>
-						<div class="btn-row">
-							<input type="file" id="fw_file" accept=".bin,application/octet-stream" />
-							<button type="button" class="common-btn version-btn" onclick="flashFromPc()">Flash file</button>
-						</div>
-						<div class="pwd-des">App .bin only (hp10_bringup.bin or a dumped ota slot). Not an ELF and not a full 4MB dump.</div>
+						<label class="field-label" for="fw_file">Firmware file</label>
+						<input type="file" id="fw_file" accept=".bin,application/octet-stream" />
+						<div class="hint">App .bin only (hp10_bringup.bin or a dumped OTA slot). Not an ELF and not a full 4MB dump.</div>
 					</div>
 				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="flashFromPc()">Flash file</button>
+				</div>
 			</section>
-			<section class="content-box" data-tone="err">
+			<section class="content-box">
 				<h2 class="input-box-til">Security</h2>
 				<div class="fields">
 					<div class="field wide">
 						<label class="field-label" for="APpwd">Login &amp; AP password</label>
 						<input type="password" id="APpwd" value="" maxlength="63" />
 						<label class="pwd-label"><input type="checkbox" autocomplete="off" onchange="togglePwd(this, 'APpwd')">Show password</label>
-						<div class="pwd-des">Empty = open SoftAP and any login. Or 8–63 letters/numbers. Changing it reboots the device.</div>
+						<div class="hint">Empty = open SoftAP and any login. Or 8–63 letters/numbers. Changing it reboots the device.</div>
 					</div>
 				</div>
 				<div class="btn-box">
@@ -192,8 +219,9 @@
 			<section class="content-box" data-tone="err">
 				<h2 class="input-box-til">Power</h2>
 				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="restore()">Restore default</button>
 					<button type="button" class="common-btn" onclick="reboot()">Reboot</button>
+					<button type="button" class="common-btn" onclick="restore()">Restore default</button>
+					<div class="hint">Restore default wipes all settings and reboots.</div>
 				</div>
 			</section>
 		</div>
@@ -205,20 +233,19 @@
 	let restaringTime = 15
 	let upgradeKey = 'check'
 	let noSize = false
+	const OTA_CHECK_URL = 'https://raw.githubusercontent.com/Damiasroca/WittSky/main/ota.json'
 
 	function getDevice() {
 		ajax({
 			url: '/get_device_info',
 			success: function (res) {
 				document.querySelector('#upgrade').checked = res.upgrade == 1
-				document.querySelector('#ota_url').value = res.ota_url || ''
 				document.querySelector('#wd_en').checked = res.wd_en == 1
 				if (res.wd_cam_n) document.querySelector('#wd_cam_n').value = res.wd_cam_n
 				if (res.wd_up_n) document.querySelector('#wd_up_n').value = res.wd_up_n
 				if (res.wd_cap_n) document.querySelector('#wd_cap_n').value = res.wd_cap_n
 				if (res.wd_cap_m) document.querySelector('#wd_cap_m').value = res.wd_cap_m
 				if (res.newVersion == 1) {
-					document.querySelector('#check-ver').style.display = 'none'
 					document.querySelector('#up-ver').style.display = 'block'
 					document.querySelector('#up-ver').classList.add('new-version')
 				}
@@ -233,6 +260,16 @@
 		})
 	}
 
+	function setAutoUpgrade() {
+		ajax({
+			method: 'post',
+			url: '/set_device_info',
+			data: { upgrade: document.querySelector('#upgrade').checked ? 1 : 0 },
+			success: function () { toast({ txt: 'Saved', type: 'success' }) },
+			error: function (err) { toast({ txt: err, type: 'error' }) }
+		})
+	}
+
 	function setWatchdog() {
 		ajax({
 			method: 'post',
@@ -244,29 +281,6 @@
 				wd_cap_n: document.querySelector('#wd_cap_n').value,
 				wd_cap_m: document.querySelector('#wd_cap_m').value
 			},
-			success: function () {
-				toast({ txt: 'Success', type: 'success' })
-				pollHealth()
-			},
-			error: function (err) { toast({ txt: err, type: 'error' }) }
-		})
-	}
-
-	function pollHealth() {
-		ajax({
-			url: '/get_health',
-			success: function (res) {
-				if (res)
-					paintWatchdog(res)
-			}
-		})
-	}
-
-	function setUpgrade() {
-		ajax({
-			method: 'post',
-			url: '/set_device_info',
-			data: { ota_url: document.querySelector('#ota_url').value.trim() },
 			success: function () { toast({ txt: 'Success', type: 'success' }) },
 			error: function (err) { toast({ txt: err, type: 'error' }) }
 		})
@@ -295,11 +309,8 @@
 	let tzReady = false
 
 	function browserTz() {
-		try {
-			return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-		} catch (e) {
-			return ''
-		}
+		try { return Intl.DateTimeFormat().resolvedOptions().timeZone || '' }
+		catch (e) { return '' }
 	}
 
 	function fillTzSelect(selected) {
@@ -308,8 +319,7 @@
 		sel.innerHTML = ''
 		let groups = {}
 		tzZones.forEach(function (z) {
-			if (filter && z.toLowerCase().indexOf(filter) < 0)
-				return
+			if (filter && z.toLowerCase().indexOf(filter) < 0) return
 			let g = z.indexOf('/') >= 0 ? z.split('/')[0] : 'Other'
 			if (!groups[g]) groups[g] = []
 			groups[g].push(z)
@@ -350,8 +360,7 @@
 				tzZones = (res && res.zones) ? res.zones : []
 				tzReady = true
 				let pick = selected || browserTz()
-				if (pick && tzZones.indexOf(pick) < 0)
-					pick = selected || ''
+				if (pick && tzZones.indexOf(pick) < 0) pick = selected || ''
 				fillTzSelect(pick)
 			},
 			error: function () {
@@ -370,10 +379,8 @@
 		setTile('#sunset', res.sunset || '—')
 		document.querySelector('#lat').value = (res.lat === null || res.lat === undefined) ? '' : res.lat
 		document.querySelector('#lon').value = (res.lon === null || res.lon === undefined) ? '' : res.lon
-		if (tzReady)
-			fillTzSelect(res.tz_iana || '')
-		else
-			loadTimezones(res.tz_iana || '')
+		if (tzReady) fillTzSelect(res.tz_iana || '')
+		else loadTimezones(res.tz_iana || '')
 	}
 
 	function setLocation() {
@@ -389,10 +396,7 @@
 			return
 		}
 		let data = { tz_iana: tz }
-		if (lat !== '') {
-			data.lat = Number(lat)
-			data.lon = Number(lon)
-		}
+		if (lat !== '') { data.lat = Number(lat); data.lon = Number(lon) }
 		ajax({
 			method: 'post',
 			url: '/set_ws_settings',
@@ -405,9 +409,7 @@
 				toast({ txt: 'Success', type: 'success' })
 				getWs(fillLocation)
 			},
-			error: function (err) {
-				toast({ txt: err, type: 'error' })
-			}
+			error: function (err) { toast({ txt: err, type: 'error' }) }
 		})
 	}
 
@@ -419,8 +421,7 @@
 	function wsLogViewerUrl(res) {
 		let path = (res && res.ws_log_path) ? res.ws_log_path : '/ws/log'
 		let typed = document.querySelector('#ws_log_url').value.trim()
-		if (typed.charAt(0) === '/')
-			path = typed
+		if (typed.charAt(0) === '/') path = typed
 		let port = (res && res.ws_log_port) ? res.ws_log_port : 82
 		let proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
 		return proto + '//' + location.hostname + ':' + port + path
@@ -513,21 +514,31 @@
 		loading.show('Check the new version')
 		ajax({
 			method: 'post',
-			url: '/upgrade_process',
-			data: { upgrade: upgradeKey },
-			success: function (res) {
-				loading.hide()
-				if (res.err) {
-					document.querySelector('#current-version').innerText = res.msg
-					toast({ txt: res.msg, type: 'error' })
-				} else if (res.is_new) {
-					document.querySelector('#current-version').innerText = res.msg
-					document.querySelector('#check-ver').style.display = 'none'
-					document.querySelector('#up-ver').style.display = 'block'
-					document.querySelector('#up-ver').classList.add('new-version')
-				} else {
-					document.querySelector('#current-version').innerText = "It's the latest version\r\n" + res.msg
-				}
+			url: '/set_device_info',
+			data: { ota_url: OTA_CHECK_URL },
+			success: function () {
+				ajax({
+					method: 'post',
+					url: '/upgrade_process',
+					data: { upgrade: upgradeKey },
+					success: function (res) {
+						loading.hide()
+						if (res.err) {
+							document.querySelector('#current-version').innerText = res.msg
+							toast({ txt: res.msg, type: 'error' })
+						} else if (res.is_new) {
+							document.querySelector('#current-version').innerText = res.msg
+							document.querySelector('#up-ver').style.display = 'block'
+							document.querySelector('#up-ver').classList.add('new-version')
+						} else {
+							document.querySelector('#current-version').innerText = "It's the latest version\r\n" + res.msg
+						}
+					},
+					error: function (err) {
+						loading.hide()
+						toast({ txt: err, type: 'error' })
+					}
+				})
 			},
 			error: function (err) {
 				loading.hide()
@@ -717,7 +728,5 @@
 		fillLocation(res)
 		fillWsLog(res)
 	})
-	pollHealth()
-	setInterval(pollHealth, 15000)
 </script>
 </html>

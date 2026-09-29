@@ -33,12 +33,14 @@ extern const uint8_t skystats_html_start[] asm("_binary_skystats_html_start");
 extern const uint8_t skystats_html_end[]   asm("_binary_skystats_html_end");
 extern const uint8_t overlay_html_start[] asm("_binary_overlay_html_start");
 extern const uint8_t overlay_html_end[]   asm("_binary_overlay_html_end");
-extern const uint8_t theme_original_css_start[]  asm("_binary_theme_original_css_start");
-extern const uint8_t theme_original_css_end[]    asm("_binary_theme_original_css_end");
-extern const uint8_t theme_technical_css_start[] asm("_binary_theme_technical_css_start");
-extern const uint8_t theme_technical_css_end[]   asm("_binary_theme_technical_css_end");
-extern const uint8_t theme_warm_css_start[]      asm("_binary_theme_warm_css_start");
-extern const uint8_t theme_warm_css_end[]        asm("_binary_theme_warm_css_end");
+extern const uint8_t axcss_css_start[]     asm("_binary_axcss_css_start");
+extern const uint8_t axcss_css_end[]       asm("_binary_axcss_css_end");
+extern const uint8_t dark_css_start[]      asm("_binary_dark_css_start");
+extern const uint8_t dark_css_end[]        asm("_binary_dark_css_end");
+extern const uint8_t warm_css_start[]      asm("_binary_warm_css_start");
+extern const uint8_t warm_css_end[]        asm("_binary_warm_css_end");
+extern const uint8_t technical_css_start[] asm("_binary_technical_css_start");
+extern const uint8_t technical_css_end[]   asm("_binary_technical_css_end");
 extern const uint8_t axjs_js_start[] asm("_binary_axjs_js_start");
 extern const uint8_t axjs_js_end[]   asm("_binary_axjs_js_end");
 extern const uint8_t camera_js_start[] asm("_binary_camera_js_start");
@@ -167,19 +169,19 @@ static esp_err_t overlay_html_get(httpd_req_t *req)
 }
 
 /* One row per look. To add one: embed its CSS in CMakeLists.txt and append here.
- * An unknown or missing NVS id falls back to original. */
+ * An unknown or missing NVS id falls back to dark. */
 static const struct {
     const char *id;
     const char *label;
     const uint8_t *start;
     const uint8_t *end;
 } s_themes[] = {
-    { "original",  "Original",     theme_original_css_start,  theme_original_css_end },
-    { "technical", "Technical",    theme_technical_css_start, theme_technical_css_end },
-    { "warm",      "Station warm", theme_warm_css_start,      theme_warm_css_end },
+    { "dark",      "Dark",         dark_css_start,      dark_css_end },
+    { "warm",      "Station warm", warm_css_start,      warm_css_end },
+    { "technical", "Technical",    technical_css_start, technical_css_end },
 };
 
-static char s_theme_id[16] = "original";
+static char s_theme_id[16] = "dark";
 
 static int theme_index(const char *id)
 {
@@ -219,11 +221,16 @@ static int theme_active(void)
     int i = theme_index(s_theme_id);
     if (i >= 0)
         return i;
-    i = theme_index("original");
+    i = theme_index("dark");
     return i >= 0 ? i : 0;
 }
 
-static esp_err_t css_get(httpd_req_t *req)
+static esp_err_t axcss_get(httpd_req_t *req)
+{
+    return send_blob(req, "text/css", axcss_css_start, axcss_css_end);
+}
+
+static esp_err_t active_theme_get(httpd_req_t *req)
 {
     int i = theme_active();
     return send_blob(req, "text/css", s_themes[i].start, s_themes[i].end);
@@ -324,7 +331,8 @@ void www_start(void)
     register_get(http, "/system.html", system_html_get);
     register_get(http, "/skystats.html", skystats_html_get);
     register_get(http, "/overlay.html", overlay_html_get);
-    register_get(http, "/axcss.css", css_get);
+    register_get(http, "/axcss.css", axcss_get);
+    register_get(http, "/themes/active.css", active_theme_get);
     register_get(http, "/get_theme", get_theme);
     register_post(http, "/set_theme", set_theme);
     register_get(http, "/axjs.js", js_get);

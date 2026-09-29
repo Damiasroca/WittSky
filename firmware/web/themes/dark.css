@@ -1,0 +1,9 @@
+/* ============================================================================
+   Theme — Dark (reference)
+   The shell (axcss.css) already ships the dark palette as its default. This
+   file is the identity theme: it exists so themes/ contains one file per
+   theme, and so /themes/active.css can point here. It's also the cleanest
+   template to copy when authoring a new theme.
+   ============================================================================ */
+
+:root { --theme-name: "dark"; }

@@ -5,6 +5,43 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Camera</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
+	<style>
+		.img-wrap { padding: 16px 24px 8px; }
+		#stream {
+			display: block; width: 100%; max-height: 640px; min-height: 220px;
+			border-radius: 10px; object-fit: contain;
+			background: var(--bg); border: 1px solid var(--line);
+		}
+		.range {
+			display: flex; align-items: center; gap: 10px; height: 38px;
+			color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums;
+		}
+		.range input[type="range"] { flex: 1; min-width: 0; }
+		.switch { display: block; position: relative; height: 22px; line-height: 22px; }
+		.switch input { display: none; }
+		.slider { width: 51px; height: 21px; border-radius: 21px; cursor: pointer; background-color: #ccc; }
+		.slider, .slider:before { display: inline-block; transition: 0.3s; }
+		.slider:before {
+			position: relative; content: ""; border-radius: 50%;
+			height: 15px; width: 15px; left: 4px; top: 2px; background-color: #fff;
+		}
+		.switch input:checked + .slider { background-color: var(--accent); }
+		.switch input:checked + .slider:before { transform: translateX(27px); }
+		.hidden { display: none; }
+		#awb_live { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+		#awb_saved .tile-value { display: flex; flex-wrap: wrap; gap: 0 .7rem; font-size: 15px; }
+		.awb-new { grid-template-columns: minmax(160px, 2fr) repeat(3, minmax(72px, 1fr)); }
+		.preset-del {
+			min-width: 0; margin-top: 10px; padding: 5px 12px; font-size: 13px;
+			color: var(--text); background: var(--raised); border: 1px solid var(--line);
+		}
+		@media (max-width: 760px) {
+			.img-wrap { padding: 12px 16px 4px; }
+			.awb-new { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+			.awb-new .field:first-child { grid-column: 1 / -1; }
+		}
+	</style>
 </head>
 <body>
 	<div class="wrap">
@@ -14,13 +51,13 @@
 				<h1 class="page-til">Camera</h1>
 				<p class="page-sub">Live picture, image settings, and white balance.</p>
 			</header>
-			<section class="content-box" data-tone="cam">
+			<section class="content-box">
 				<h2 class="input-box-til">Live view</h2>
 				<div class="img-wrap">
 					<img id="stream" src="" alt="Live view">
 				</div>
 			</section>
-			<section class="content-box" data-tone="ok">
+			<section class="content-box">
 				<h2 class="input-box-til">Picture</h2>
 				<div class="fields">
 					<div class="field">
@@ -66,22 +103,16 @@
 				</div>
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="saveVideo()">Save</button>
-					<div class="pwd-des">Changes apply immediately. Save keeps them after reboot.</div>
+					<div class="hint">Changes apply immediately. Save keeps them after reboot.</div>
 				</div>
 			</section>
-			<section class="content-box" data-tone="ok">
+			<section class="content-box">
 				<h2 class="input-box-til">White balance</h2>
 				<div class="fields">
 					<div class="field">
 						<label class="field-label" for="sky_awb">Mode</label>
-						<select id="sky_awb">
-							<option value="0">Auto</option>
-							<option value="1">Sunny</option>
-							<option value="2">Cloudy</option>
-							<option value="3">Office</option>
-							<option value="4">Home</option>
-						</select>
-						<div class="pwd-des">Applies immediately. A fixed colour changes every uploaded picture.</div>
+						<select id="sky_awb"></select>
+						<div class="hint">Applies immediately. Auto does not report its gains.</div>
 					</div>
 				</div>
 				<div class="tiles" id="awb_live">
@@ -98,12 +129,11 @@
 						<div class="tile-value" data-ch="2">—</div>
 					</div>
 				</div>
-				<p class="card-note">Gains written to the sensor. Auto does not report them. Sunny is 94, 65, 84. Cloudy is 101, 65, 79. Office is 82, 65, 102. Home is 66, 63, 113.</p>
 			</section>
-			<section class="content-box" data-tone="cam">
+			<section class="content-box">
 				<h2 class="input-box-til">Presets</h2>
 				<div class="tiles" id="awb_saved"></div>
-				<p class="card-note hidden" id="awb_none">No presets saved yet.</p>
+				<p class="hint hidden" id="awb_none">No presets saved yet.</p>
 				<div id="awb_full" class="notice hidden">All four slots are used. Delete a preset to save another.</div>
 				<div id="awb_cal_msg" class="notice hidden"></div>
 				<div class="fields awb-new">
@@ -128,7 +158,7 @@
 					<button type="button" class="common-btn" onclick="copyLiveAwb()">Copy applied gains</button>
 					<button type="button" class="common-btn" id="awb_save" onclick="savePreset()">Save preset</button>
 					<button type="button" class="common-btn" id="awb_cal_btn" onclick="calibrateAwb()">Calibrate from sky</button>
-					<div class="pwd-des">Up to four presets, kept after a power cycle. Deleting the preset in use returns white balance to Auto. Calibrate from sky matches auto white balance on the sky mask and saves it under the name above. Keep the camera still; the live view pauses until it finishes.</div>
+					<div class="hint">Up to four presets, kept after a power cycle. Calibrate from sky matches auto white balance on the sky mask; keep the camera still.</div>
 				</div>
 			</section>
 		</div>

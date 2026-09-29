@@ -5,6 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Uploads</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
 	<style>
 		.upload-status { padding: 16px 24px 0; }
 		.dest { display: flex; flex-wrap: wrap; gap: 0 20px; }
@@ -22,7 +23,7 @@
 				<h1 class="page-til">Uploads</h1>
 				<p class="page-sub">Where pictures are sent, and how often.</p>
 			</header>
-			<section class="content-box" data-tone="warn">
+			<section class="content-box">
 				<h2 class="input-box-til">Upload</h2>
 				<div class="upload-status"><span class="ind" id="no-uploaded">—</span></div>
 				<div class="fields">
@@ -33,7 +34,7 @@
 							<label class="check"><input type="radio" name="dest" value="custom" /> Custom URL</label>
 							<label class="check"><input type="radio" name="dest" value="eco" /> Ecowitt.net</label>
 						</div>
-						<div class="pwd-des">Uploads use this camera MAC. For Ecowitt.net, register the camera with the account below.</div>
+						<div class="hint">Uploads use this camera MAC. For Ecowitt.net, register the camera with the account below.</div>
 					</div>
 					<div class="field">
 						<label class="field-label" for="ost_interval">Interval (minutes)</label>
@@ -55,7 +56,7 @@
 					<button type="button" class="common-btn" onclick="setCapture()">Apply</button>
 				</div>
 			</section>
-			<section class="content-box" data-tone="ok" id="eco-card" style="display:none">
+			<section class="content-box" id="eco-card" style="display:none">
 				<h2 class="input-box-til">Ecowitt account</h2>
 				<div id="eco-msg" class="notice"></div>
 				<div class="tiles" id="eco-tiles"></div>
@@ -68,7 +69,7 @@
 						<div class="field">
 							<label class="field-label" for="eco_pwd">Password</label>
 							<input type="password" id="eco_pwd" maxlength="64" autocomplete="current-password" placeholder="Ecowitt password" />
-							<div class="pwd-des" id="eco-pwd-hint"></div>
+							<div class="hint" id="eco-pwd-hint"></div>
 						</div>
 					</div>
 					<div class="btn-box">
@@ -80,7 +81,7 @@
 						<div class="field wide">
 							<label class="field-label" for="eco_name">Camera name</label>
 							<input type="text" id="eco_name" maxlength="31" placeholder="HP10" />
-							<div class="pwd-des">Letters, numbers, space, dot, dash, underscore. Uses the location and time zone set on the System page, and this camera MAC.</div>
+							<div class="hint">Letters, numbers, space, dot, dash, underscore. Uses the location and time zone set on the System page, and this camera MAC.</div>
 						</div>
 					</div>
 					<div class="btn-box">

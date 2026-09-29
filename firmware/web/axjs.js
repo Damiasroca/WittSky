@@ -1,4 +1,6 @@
-function ajax(option) {
+sidebar();
+
+const ajax = function (option) {
   let init = {
     method: "GET",
     url: "",
@@ -74,7 +76,6 @@ function sidebar() {
         <a class="sidebar-a" href="./video.html">Camera</a>
         <a class="sidebar-a" href="./skystats.html">Sky</a>
         <a class="sidebar-a" href="./capture.html">Uploads</a>
-        <a class="sidebar-a" href="./overlay.html">Overlay</a>
         <a class="sidebar-a" href="./localNetwork.html">Network</a>
         <a class="sidebar-a" href="./system.html">System</a>
 			`;
@@ -91,43 +92,6 @@ function sidebar() {
         `<p id="sidebar-version">${localStorage.getItem("version")}</p>`
       );
   }
-  function paintOta(res) {
-    let sys = document.querySelector('#sidebar a[href="./system.html"]');
-    let ver = document.querySelector("#sidebar-version");
-    if (!res || res.newVersion != 1) {
-      localStorage.removeItem("newVersion");
-      if (sys) sys.classList.remove("new-version-sidebar");
-      if (ver) {
-        let old = ver.querySelector(".ota-note");
-        if (old) {
-          if (old.previousSibling && old.previousSibling.nodeName === "BR")
-            old.previousSibling.remove();
-          old.remove();
-        }
-      }
-      return;
-    }
-    localStorage.setItem("newVersion", "1");
-    if (sys) sys.classList.add("new-version-sidebar");
-    if (!ver) {
-      document
-        .querySelector("#sidebar")
-        .insertAdjacentHTML("beforeend", '<p id="sidebar-version"></p>');
-      ver = document.querySelector("#sidebar-version");
-    }
-    if (ver.querySelector(".ota-note")) return;
-    let note = document.createElement("span");
-    note.className = "ota-note";
-    note.textContent = "New firmware. Open System to install.";
-    if (ver.textContent) ver.appendChild(document.createElement("br"));
-    ver.appendChild(note);
-  }
-  setTimeout(function () {
-    ajax({ url: "/get_version", success: paintOta });
-    setInterval(function () {
-      ajax({ url: "/get_version", success: paintOta });
-    }, 60000);
-  }, 0);
 }
 
 function fmtUptime(s) {
@@ -469,5 +433,3 @@ function baseDecode(input) {
   output = utf8_decode(output);
   return output;
 }
-
-sidebar();

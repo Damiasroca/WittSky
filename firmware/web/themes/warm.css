@@ -1,0 +1,144 @@
+/* ============================================================================
+   Theme — Warm (paper & ink, serif titles)
+   Cream background, dark brown ink, oxblood accent. Titles set in Palatino;
+   tile values in a monospace face. Cards render as top-ruled sections
+   (no box, no shadow), with sharp corners throughout.
+   ============================================================================ */
+
+:root {
+  --theme-name: "warm";
+
+  /* palette */
+  --paper: #efe6d4;
+  --paper-2: #e7dcc6;
+  --paper-3: #e4d7c0;
+  --ink: #1c140e;
+  --rule: #5c4632;
+  --note: #4a3828;
+  --fade: #6e5e4c;
+
+  --bg: var(--paper);
+  --surface: var(--paper);
+  --raised: var(--paper-2);
+  --line: var(--ink);
+  --line-soft: var(--rule);
+  --text: var(--ink);
+  --muted: var(--note);
+  --placeholder: var(--fade);
+  --accent: #7a3428;
+  --accent-ink: #f6efe3;
+
+  --ok: #1b5e32;
+  --warn: #7a4e0e;
+  --err: #8b2a24;
+  --notice-bg: transparent;
+  --notice-border: transparent;
+
+  --ch-r: inherit;
+  --ch-g: inherit;
+  --ch-b: inherit;
+
+  /* typography */
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  --font-title: Palatino, "Palatino Linotype", "Iowan Old Style", Georgia, serif;
+  --font-value: var(--font-mono);
+
+  --page-til-size: 28px;
+  --page-til-weight: 600;
+  --page-til-tracking: 0;
+
+  --card-til-size: 20px;
+  --card-til-weight: 600;
+  --card-til-tracking: 0;
+
+  --group-til-size: 16px;
+  --value-weight: 500;
+  --label-weight: 500;
+  --btn-weight: 500;
+
+  /* shape */
+  --radius: 0;
+  --card-radius: 0;
+  --tile-radius: 0;
+  --shadow: none;
+
+  /* card = ruled band, no box */
+  --card-bg: transparent;
+  --card-border: 0;
+  --card-header-bg: transparent;
+  --card-header-border: 1px solid var(--ink);
+
+  /* accent title-mark = small square outline */
+  --stripe-w: 8px;
+  --stripe-h: 8px;
+  --stripe-radius: 0;
+  --stripe-bg: var(--accent);
+
+  /* tile = bottom-ruled row */
+  --tile-bg: transparent;
+  --tile-border: 0;
+  --tile-shadow: none;
+
+  --input-bg: transparent;
+  --input-border: 1px solid var(--ink);
+  --input-height: 38px;
+
+  --switch-off-bg: transparent;
+  --switch-thumb: var(--ink);
+}
+
+/* --- structural overrides --------------------------------------------------
+   Anything the variable surface can't express cleanly.
+   -------------------------------------------------------------------------- */
+
+body { color-scheme: light; }
+a { color: var(--accent); }
+:focus-visible { outline-color: var(--accent); }
+
+/* Cards: top rule, no side/bottom border */
+.content-box { border-top: 3px solid var(--ink); border-radius: 0; }
+.page-head { padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+.page-sub { font-family: var(--font-title); font-style: italic; font-size: 16px; }
+
+/* Card title: bordered small square before, ruled bottom */
+.input-box-til { padding: 14px 24px 10px; }
+.input-box-til::before { border: 1px solid var(--ink); }
+
+/* Sidebar: right rule; items separated by rule; active = colour + rule */
+#sidebar { border-right: 2px solid var(--ink); padding: 28px 16px 28px 18px; }
+.sidebar-a { border-bottom: 1px solid var(--rule); border-radius: 0; color: var(--ink); }
+.sidebar-a:hover { background: var(--paper-3); }
+.sidebar-a-on {
+  color: var(--accent); background: transparent;
+  border-bottom-color: var(--accent); font-weight: 600;
+}
+#sidebar-version { margin-top: 18px; padding: 12px 8px 0; border-top: 1px solid var(--rule); font-family: var(--font-mono); }
+
+/* Tiles: rows with a rule, not boxes */
+.tiles { gap: 0 16px; padding: 4px 24px 8px; }
+.tile { padding: 8px 0 6px; border-bottom: 1px solid var(--rule); }
+
+/* Buttons: outline, not filled */
+.common-btn {
+  color: var(--ink); background: transparent;
+  border: 1px solid var(--ink); padding: 8px 16px;
+}
+.common-btn:hover { background: var(--paper-3); filter: none; }
+.common-btn:active { transform: translateY(1px); filter: none; }
+.common-btn:disabled { color: var(--fade); border-color: var(--fade); background: transparent; opacity: 1; }
+.common-btn.is-live { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* Notice: left-rule only, no fill */
+.notice { padding: 8px 0 8px 12px; background: transparent; border: 0; border-left: 2px solid var(--warn); }
+
+/* Number/search inputs read as data → monospace */
+input[type="number"], input[type="search"] { font-family: var(--font-mono); }
+
+/* Details / advanced: no background box */
+details.advanced { background: transparent; border: 1px solid var(--rule); }
+
+@media (max-width: 760px) {
+  #sidebar { border-right: 0; border-bottom: 2px solid var(--ink); }
+  #sidebar-version { margin: 0 0 0 auto; padding: 0 8px; border-top: 0; }
+}

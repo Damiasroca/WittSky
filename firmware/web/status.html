@@ -5,6 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Overview</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
 </head>
 <body>
 	<div class="wrap">
@@ -14,8 +15,10 @@
 				<h1 class="page-til">Overview</h1>
 				<p class="page-sub">Live health of the radio, camera, memory, and uploads, plus the latest sky reading.</p>
 			</header>
-			<section class="content-box" data-tone="net">
-				<h2 class="input-box-til">Connection</h2>
+			<section class="content-box">
+				<h2 class="input-box-til">Health</h2>
+
+				<h3 class="tile-group">Network</h3>
 				<div class="tiles">
 					<div class="tile">
 						<div class="tile-label">Wi-Fi signal</div>
@@ -31,6 +34,10 @@
 						<div class="tile-label">IP address</div>
 						<div class="tile-value" id="h-ip">—</div>
 					</div>
+				</div>
+
+				<h3 class="tile-group">Camera &amp; uploads</h3>
+				<div class="tiles">
 					<div class="tile">
 						<div class="tile-label">Camera</div>
 						<div class="tile-value" id="h-cam">—</div>
@@ -41,9 +48,8 @@
 						<div class="tile-sub" id="h-upload-sub"></div>
 					</div>
 				</div>
-			</section>
-			<section class="content-box" data-tone="ok">
-				<h2 class="input-box-til">Device</h2>
+
+				<h3 class="tile-group">Device</h3>
 				<div class="tiles">
 					<div class="tile wide">
 						<div class="tile-label">MAC</div>
@@ -62,18 +68,13 @@
 						<div class="tile-value" id="h-psram">—</div>
 						<div class="tile-sub" id="h-psram-sub"></div>
 					</div>
-					<div class="tile">
-						<div class="tile-label">Reboot reason</div>
+					<div class="tile wide">
+						<div class="tile-label">Boot cause</div>
 						<div class="tile-value" id="h-reset">—</div>
 					</div>
-					<div class="tile wide">
-						<div class="tile-label">Previous cause</div>
-						<div class="tile-value" id="h-cause">—</div>
-					</div>
 				</div>
-			</section>
-			<section class="content-box" data-tone="warn">
-				<h2 class="input-box-til">Watchdog</h2>
+
+				<h3 class="tile-group">Watchdog</h3>
 				<div class="tiles">
 					<div class="tile">
 						<div class="tile-label">Camera failures</div>
@@ -90,7 +91,7 @@
 					</div>
 				</div>
 			</section>
-			<section class="content-box" data-tone="cam">
+			<section class="content-box">
 				<h2 class="input-box-til">Sky</h2>
 				<div id="sky_note" class="notice"></div>
 				<div class="tiles">
@@ -113,7 +114,6 @@
 				<h2 class="input-box-til">Actions</h2>
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="postAction('/upload_now', 'Uploading')">Upload now</button>
-					<button type="button" class="common-btn" onclick="postAction('/retry_camera', 'Retrying camera')">Retry camera</button>
 					<button type="button" class="common-btn" onclick="measureNow()">Measure now</button>
 				</div>
 			</section>
@@ -138,10 +138,8 @@
 	function paintConnection(res) {
 		let hasRssi = res.rssi !== null && res.rssi !== undefined
 		let rssiTone = 'err'
-		if (res.rssi_label === 'good')
-			rssiTone = 'ok'
-		else if (res.rssi_label === 'fair')
-			rssiTone = 'warn'
+		if (res.rssi_label === 'good') rssiTone = 'ok'
+		else if (res.rssi_label === 'fair') rssiTone = 'warn'
 		setTile('#h-rssi', hasRssi ? res.rssi + ' dBm' : 'not connected', rssiTone)
 		setSub('#h-rssi-sub', hasRssi ? res.rssi_label : '')
 		setTile('#h-ssid', res.ssid || '(none)')
@@ -167,16 +165,15 @@
 		setTile('#h-psram', fmtBytes(res.psram_free))
 		setSub('#h-psram-sub', res.psram_size ? 'of ' + fmtBytes(res.psram_size) : '')
 		let reason = res.reboot_reason || '—'
-		setTile('#h-reset', reason, resetTone(reason))
-		setTile('#h-cause', res.prev_cause || '—')
+		let prev = res.prev_cause && res.prev_cause !== '—' ? ' (prev: ' + res.prev_cause + ')' : ''
+		setTile('#h-reset', reason + prev, resetTone(reason))
 	}
 
 	function pollHealth() {
 		ajax({
 			url: '/get_health',
 			success: function (res) {
-				if (!res)
-					return
+				if (!res) return
 				paintConnection(res)
 				paintDevice(res)
 				paintWatchdog(res)
@@ -204,23 +201,16 @@
 		document.querySelector('#sky_note').textContent = ''
 		let day = 'Unknown'
 		let dayTone = 'warn'
-		if (res.day === true) {
-			day = 'Day'
-			dayTone = 'ok'
-		} else if (res.day === false) {
-			day = 'Night'
-		}
+		if (res.day === true) { day = 'Day'; dayTone = 'ok' }
+		else if (res.day === false) { day = 'Night' }
 		setTile('#s-day', day, dayTone)
 		let hasCloud = res.cloud_pct !== null && res.cloud_pct !== undefined
 		setTile('#s-cloud', hasCloud ? res.cloud_pct + '%' : '—', hasCloud ? 'ok' : 'warn')
 		let why = ''
 		if (!hasCloud) {
-			if (res.day === false)
-				why = 'not reported at night'
-			else if (res.day === null)
-				why = 'daylight unknown'
-			else
-				why = 'not enough usable sky'
+			if (res.day === false) why = 'not reported at night'
+			else if (res.day === null) why = 'daylight unknown'
+			else why = 'not enough usable sky'
 		}
 		setSub('#s-cloud-sub', why)
 		setTile('#s-luma', (res.luma === null || res.luma === undefined) ? '—' : String(res.luma))
@@ -230,9 +220,7 @@
 		ajax({
 			url: '/get_sky_stats',
 			success: paintSky,
-			error: function () {
-				toast({ txt: 'Could not load sky stats', type: 'error' })
-			}
+			error: function () { toast({ txt: 'Could not load sky stats', type: 'error' }) }
 		})
 	}
 

@@ -5,6 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Overlay</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
 	<style>
 		.ov-grid {
 			display: grid;
@@ -175,7 +176,7 @@
 					<div class="field wide" id="url-field">
 						<label class="field-label" for="ov_url">Cloud URL</label>
 						<input type="text" id="ov_url" maxlength="383" spellcheck="false" />
-						<div class="pwd-des">The real-time API address, including the application key, API key, and station MAC.</div>
+						<div class="hint">The real-time API address, including the application key, API key, and station MAC.</div>
 					</div>
 					<div class="field" id="host-field">
 						<label class="field-label" for="ov_host">Gateway host</label>
@@ -189,7 +190,7 @@
 			</section>
 			<section class="content-box" data-tone="cam">
 				<h2 class="input-box-til">Placement</h2>
-				<p class="card-note">Drag a block on the frame. It is a 4:3 still, the same shape as 1600×1200. X and Y are thousandths of the frame from the anchor. Negative X moves left, negative Y moves up. The direction arrow rides the compass degree ring and the sample points south. Its colour runs from blue at 0 km/h through green, yellow and orange to red at 70 km/h. With the compass hidden, that mark is the centre of the circle it travels. The rain mark is only burned in while the station reports rain.</p>
+				<p class="hint">Drag a block on the frame. It is a 4:3 still, the same shape as 1600×1200. X and Y are thousandths of the frame from the anchor. Negative X moves left, negative Y moves up. The direction arrow rides the compass degree ring and the sample points south. Its colour runs from blue at 0 km/h through green, yellow and orange to red at 70 km/h. With the compass hidden, that mark is the centre of the circle it travels. The rain mark is only burned in while the station reports rain.</p>
 				<div class="ov-place">
 					<div class="ov-stage" id="stage">
 						<div class="ov-chip ov-rose" data-id="rs" id="chip-rs">N</div>

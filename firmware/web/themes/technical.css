@@ -1,0 +1,180 @@
+/* ============================================================================
+   Theme — Technical (industrial control panel)
+   Dark ground with amber accent. Titles and labels in small-caps uppercase
+   sans; values and buttons in monospace. Cards are top-ruled sections,
+   coloured by tone. Tiles and fields render as a grid of bordered cells.
+   ============================================================================ */
+
+:root {
+  --theme-name: "technical";
+
+  /* palette */
+  --ground: #161716;
+  --cell: #1c1e1c;
+  --hover: #2a2c2a;
+  --press: #141514;
+  --log: #101210;
+  --amber: #d6a441;
+  --amber-ink: #1a160c;
+
+  --bg: var(--ground);
+  --surface: var(--cell);
+  --raised: #222422;
+  --line: #4a4e4a;
+  --line-soft: #2e312e;
+  --text: #e6e4de;
+  --muted: #b7b2a8;
+  --placeholder: #9a958b;
+  --accent: var(--amber);
+  --accent-ink: var(--amber-ink);
+
+  --ok: #6d8f62;
+  --warn: #d6a441;
+  --err: #b07068;
+  --notice-bg: transparent;
+  --notice-border: transparent;
+
+  --ch-r: #c48980;
+  --ch-g: #8aa384;
+  --ch-b: #8a9bb5;
+
+  /* typography */
+  --font-body: "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-title: var(--font-body);
+  --font-label: var(--font-body);
+  --font-value: var(--font-mono);
+  --font-btn: var(--font-mono);
+
+  /* small-caps titles */
+  --page-til-size: 22px;
+  --page-til-weight: 600;
+  --page-til-tracking: 0;
+  --page-til-case: none;
+
+  --card-til-size: 12px;
+  --card-til-weight: 600;
+  --card-til-tracking: 0.06em;
+  --card-til-case: uppercase;
+
+  --group-til-size: 12px;
+  --group-til-weight: 600;
+  --group-til-tracking: 0.06em;
+  --group-til-case: uppercase;
+
+  --label-size: 12px;
+  --label-weight: 500;
+  --label-tracking: 0.06em;
+  --label-case: uppercase;
+
+  --value-size: 16px;
+  --value-weight: 500;
+  --btn-weight: 500;
+
+  /* shape */
+  --radius: 0;
+  --card-radius: 0;
+  --tile-radius: 0;
+  --shadow: none;
+
+  /* card = top rule (coloured by tone), no box */
+  --card-bg: transparent;
+  --card-border: 0;
+  --card-header-bg: transparent;
+  --card-header-border: 1px solid var(--line);
+
+  /* no title stripe */
+  --stripe-w: 0;
+  --stripe-h: 0;
+
+  --input-bg: var(--ground);
+  --input-border: 1px solid var(--line);
+  --input-height: 36px;
+}
+
+/* --- structural overrides --------------------------------------------------
+   The technical theme replaces tiles/fields with a grid-of-cells layout, and
+   swaps the coloured tile-value text for a small square dot prefix.
+   -------------------------------------------------------------------------- */
+
+body { color-scheme: dark; }
+a { color: var(--amber); }
+:focus-visible { outline-color: var(--amber); }
+
+/* Cards: top rule, no box */
+.content-box { border-top: 2px solid var(--line); border-radius: 0; }
+.content-box[data-tone="warn"] { border-top-color: var(--warn); }
+.content-box[data-tone="err"] { border-top-color: var(--err); }
+.page-head { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.page-sub { font-size: 14px; }
+
+/* Card title: no stripe */
+.input-box-til { padding: 14px 24px 10px; color: var(--placeholder); }
+.input-box-til::before { content: none; }
+
+/* Sidebar: right rule; items separated by rules */
+#sidebar { border-right: 1px solid var(--line); padding: 28px 16px 28px 18px; }
+.sidebar-a { border-bottom: 1px solid var(--line); border-radius: 0; color: var(--text); }
+.sidebar-a:hover { background: var(--hover); }
+.sidebar-a-on { color: var(--amber); background: transparent; border-bottom-color: var(--amber); font-weight: 600; }
+#sidebar-version { margin-top: 18px; padding: 12px 8px 0; border-top: 1px solid var(--line); font-family: var(--font-mono); }
+
+/* Tiles: bordered cell grid, borders overlap via negative margins */
+.tiles {
+  gap: 0; margin: 0 24px 8px; padding: 0;
+  background: var(--cell); border: 1px solid var(--line);
+}
+.tile {
+  margin: 0 -1px -1px 0; padding: 10px 12px 8px;
+  background: var(--cell); border: 0;
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.tile-value {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile-value.ok, .tile-value.warn, .tile-value.err { color: var(--text); }
+.tile-value.ok::before, .tile-value.warn::before, .tile-value.err::before {
+  content: ""; display: inline-block; width: 6px; height: 6px;
+  margin-right: 8px; vertical-align: 0.1em;
+}
+.tile-value.ok::before { background: var(--ok); }
+.tile-value.warn::before { background: var(--warn); }
+.tile-value.err::before { background: var(--err); }
+.tile-group + .tiles { margin-top: 8px; }
+
+/* Fields: same grid-of-cells */
+.fields {
+  gap: 0; margin: 0 24px 8px; padding: 0;
+  background: var(--cell); border: 1px solid var(--line);
+}
+.field {
+  margin: 0 -1px -1px 0; padding: 12px;
+  background: var(--cell);
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+
+/* Buttons: raised block, monospaced */
+.common-btn {
+  min-height: 36px; padding: 8px 16px; font-size: 13px;
+  color: var(--text); background: var(--raised);
+  border: 1px solid var(--line);
+}
+.common-btn:hover { background: var(--hover); filter: none; }
+.common-btn:active { background: var(--press); filter: none; }
+.common-btn:disabled { color: #6f6c64; border-color: var(--line-soft); background: var(--cell); opacity: 1; }
+.common-btn.is-live { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+
+/* Notice: left rule only */
+.notice { padding: 8px 0 8px 12px; background: transparent; border: 0; border-left: 1px solid var(--warn); }
+
+/* Indicator dot: value stays ink, only the dot carries the tone */
+.ind.ok, .ind.warn, .ind.err { color: var(--text); }
+
+/* Details / advanced */
+details.advanced { background: transparent; border: 1px solid var(--line-soft); }
+
+@media (max-width: 760px) {
+  #sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+  #sidebar-version { margin: 0 0 0 auto; padding: 0 8px; border-top: 0; }
+  .tiles, .fields { margin: 0 16px 4px; }
+}

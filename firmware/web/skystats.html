@@ -5,6 +5,31 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Sky</title>
 	<link rel="stylesheet" href="./axcss.css">
+	<link rel="stylesheet" href="./themes/active.css">
+	<style>
+		#stats .awb-gains { display: flex; flex-wrap: wrap; gap: 0 .7rem; font-size: 15px; }
+		.mask-wrap { padding: 16px 24px 8px; }
+		.sky-still { position: relative; display: inline-block; max-width: 100%; }
+		.sky-still img {
+			display: block; max-width: 100%; height: auto;
+			border-radius: 10px; border: 1px solid var(--line); background: var(--bg);
+		}
+		#mask {
+			position: absolute;
+			border: 2px solid var(--err);
+			background: rgba(224, 103, 95, 0.22);
+			box-sizing: border-box;
+			touch-action: none;
+			cursor: move;
+		}
+		.mask-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+		.awb-ro { display: flex; align-items: center; height: 38px; font-weight: 650; }
+		.field a { color: var(--accent); }
+		@media (max-width: 760px) {
+			.mask-wrap { padding: 12px 16px 4px; }
+			.mask-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		}
+	</style>
 </head>
 <body>
 	<div class="wrap">
@@ -14,25 +39,27 @@
 				<h1 class="page-til">Sky</h1>
 				<p class="page-sub">Latest sky measurement, the mask on the frame, and how it is computed.</p>
 			</header>
-			<section class="content-box" data-tone="ok">
+			<section class="content-box">
 				<h2 class="input-box-til">Latest</h2>
 				<div id="sky_note" class="notice"></div>
 				<div id="stats"></div>
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="loadStats()">Refresh</button>
-					<button type="button" class="common-btn" id="auto_btn" onclick="toggleAuto()">Auto-refresh off</button>
+					<button type="button" class="common-btn" id="auto_btn" onclick="toggleAuto()">Auto-refresh</button>
 					<button type="button" class="common-btn" onclick="measureNow()">Measure now</button>
 				</div>
 			</section>
-			<section class="content-box" data-tone="cam">
-				<h2 class="input-box-til">Mask</h2>
+			<section class="content-box">
+				<h2 class="input-box-til">Configuration</h2>
+
+				<h3 class="tile-group">Region on the frame</h3>
 				<div class="mask-wrap">
 					<div class="sky-still">
 						<img id="still" alt="Still used to place the mask">
 						<div id="mask" role="group" aria-label="Sky mask"></div>
 					</div>
 				</div>
-				<p class="card-note">Drag the rectangle to move it, or drag an edge to resize it. Values are percent of the frame. Reload image grabs a new still, not the frame that was just measured.</p>
+				<p class="hint">Drag the rectangle to move it, or drag an edge to resize it. Values are percent of the frame.</p>
 				<div class="fields mask-fields">
 					<div class="field">
 						<label class="field-label" for="sky_x">X %</label>
@@ -51,13 +78,8 @@
 						<input type="number" id="sky_h" min="1" max="100" step="1" />
 					</div>
 				</div>
-				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="saveCfg()">Apply</button>
-					<button type="button" class="common-btn" onclick="reloadStill()">Reload image</button>
-				</div>
-			</section>
-			<section class="content-box" data-tone="net">
-				<h2 class="input-box-til">Analysis</h2>
+
+				<h3 class="tile-group">Thresholds</h3>
 				<div class="fields">
 					<div class="field">
 						<span class="field-label">Sky stats</span>
@@ -66,26 +88,27 @@
 					<div class="field">
 						<label class="field-label" for="sky_rb">R/B threshold</label>
 						<input type="number" id="sky_rb" min="200" max="2000" step="1" />
-						<div class="pwd-des">Times 1000. Cloud if R/B is at least this value. Default 600.</div>
+						<div class="hint">Times 1000. Cloud if R/B ≥ this. Default 600.</div>
 					</div>
 					<div class="field">
 						<label class="field-label" for="sky_sat">Clip level</label>
 						<input type="number" id="sky_sat" min="200" max="255" step="1" />
-						<div class="pwd-des">A pixel at or above this on R, G, or B is saturated and left out of the cloud ratio.</div>
+						<div class="hint">Pixels at or above this on R, G, or B are saturated and excluded.</div>
 					</div>
 					<div class="field">
 						<label class="field-label" for="sky_daym">Daylight margin (min)</label>
 						<input type="number" id="sky_daym" min="0" max="180" step="1" />
-						<div class="pwd-des">After sunrise and before sunset. Outside that window, cloud cover is not reported.</div>
+						<div class="hint">After sunrise and before sunset. Outside, cloud cover is not reported.</div>
 					</div>
 					<div class="field">
 						<span class="field-label">White balance</span>
 						<div class="awb-ro" id="awb_ro">—</div>
-						<div class="pwd-des">Set on the <a href="./video.html">Camera</a> page. It changes every uploaded picture.</div>
+						<div class="hint">Set on the <a href="./video.html">Camera</a> page.</div>
 					</div>
 				</div>
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="saveCfg()">Apply</button>
+					<button type="button" class="common-btn" onclick="reloadStill()">Reload image</button>
 				</div>
 			</section>
 		</div>
@@ -98,23 +121,18 @@
 	let skyPresets = []
 	let awbNames = ['Auto', 'Sunny', 'Cloudy', 'Office', 'Home']
 
-	function num(id) {
-		return document.querySelector(id).value
-	}
+	function num(id) { return document.querySelector(id).value }
 
 	function show(v) {
-		if (v === null || v === undefined || v === '')
-			return '\u2014'
+		if (v === null || v === undefined || v === '') return '\u2014'
 		return String(v)
 	}
 
 	function awbName(n) {
 		n = Number(n)
-		if (awbNames[n] !== undefined)
-			return awbNames[n]
+		if (awbNames[n] !== undefined) return awbNames[n]
 		let p = skyPresets[n - 5]
-		if (n >= 5 && p && p.used)
-			return p.name
+		if (n >= 5 && p && p.used) return p.name
 		return undefined
 	}
 
@@ -126,16 +144,13 @@
 		document.querySelector('#still').src = '/capture?t=' + Date.now()
 	}
 
-
 	function group(box, title, items) {
 		let h = document.createElement('h3')
 		h.className = 'tile-group'
 		h.textContent = title
 		let grid = document.createElement('div')
 		grid.className = 'tiles'
-		items.forEach(function (f) {
-			grid.appendChild(makeTile(f[0], f[1], f[2]))
-		})
+		items.forEach(function (f) { grid.appendChild(makeTile(f[0], f[1], f[2])) })
 		box.appendChild(h)
 		box.appendChild(grid)
 	}
@@ -184,15 +199,10 @@
 		note.textContent = skyNote(res)
 		let day = 'Unknown'
 		let dayTone = 'warn'
-		if (res.day === true) {
-			day = 'Day'
-			dayTone = 'ok'
-		} else if (res.day === false) {
-			day = 'Night'
-		}
+		if (res.day === true) { day = 'Day'; dayTone = 'ok' }
+		else if (res.day === false) { day = 'Night' }
 		let awb = (typeof res.awb_name === 'string' && res.awb_name) ? res.awb_name : awbName(res.awb_mode)
-		if (awb === undefined)
-			awb = show(res.awb_mode)
+		if (awb === undefined) awb = show(res.awb_mode)
 		let hasCloud = res.cloud_pct !== null && res.cloud_pct !== undefined
 		group(box, 'Exposure', [
 			['Luma', show(res.luma)],
@@ -224,9 +234,7 @@
 		ajax({
 			url: '/get_sky_stats',
 			success: showStats,
-			error: function () {
-				toast({ txt: 'Could not load sky stats', type: 'error' })
-			}
+			error: function () { toast({ txt: 'Could not load sky stats', type: 'error' }) }
 		})
 	}
 
@@ -235,12 +243,10 @@
 		if (autoTimer) {
 			clearInterval(autoTimer)
 			autoTimer = null
-			btn.textContent = 'Auto-refresh off'
 			btn.classList.remove('is-live')
 			return
 		}
 		autoTimer = setInterval(loadStats, 10000)
-		btn.textContent = 'Auto-refresh on'
 		btn.classList.add('is-live')
 		loadStats()
 	}
@@ -255,10 +261,8 @@
 					toast({ txt: res.msg || 'Measure failed', type: 'error' })
 			},
 			error: function (err) {
-				if (err == 429)
-					toast({ txt: 'Busy, wait a few seconds', type: 'error' })
-				else
-					toast({ txt: 'Measure failed', type: 'error' })
+				if (err == 429) toast({ txt: 'Busy, wait a few seconds', type: 'error' })
+				else toast({ txt: 'Measure failed', type: 'error' })
 			}
 		})
 	}
@@ -279,9 +283,7 @@
 				showAwb(res.sky_awb)
 				drawMask()
 			},
-			error: function () {
-				toast({ txt: 'Could not load sky settings', type: 'error' })
-			}
+			error: function () { toast({ txt: 'Could not load sky settings', type: 'error' }) }
 		})
 	}
 
@@ -310,9 +312,7 @@
 				drawMask()
 				loadStats()
 			},
-			error: function () {
-				toast({ txt: 'Could not save sky settings', type: 'error' })
-			}
+			error: function () { toast({ txt: 'Could not save sky settings', type: 'error' }) }
 		})
 	}
 
@@ -329,9 +329,7 @@
 				showAwb(cur.sky_awb)
 				postCfg(Number(cur.sky_awb))
 			},
-			error: function () {
-				toast({ txt: 'Could not save sky settings', type: 'error' })
-			}
+			error: function () { toast({ txt: 'Could not save sky settings', type: 'error' }) }
 		})
 	}
 

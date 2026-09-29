@@ -20,10 +20,10 @@ function fillAwbMode(res) {
 	let sel = document.querySelector('#sky_awb')
 	let modes = [
 		['0', 'Auto'],
-		['1', 'Sunny'],
-		['2', 'Cloudy'],
-		['3', 'Office'],
-		['4', 'Home']
+		['1', 'Sunny · R94 G65 B84'],
+		['2', 'Cloudy · R101 G65 B79'],
+		['3', 'Office · R82 G65 B102'],
+		['4', 'Home · R66 G63 B113']
 	]
 	;(res.presets || []).forEach(function (p, i) {
 		if (p.used)
@@ -229,4 +229,4 @@ function copyLiveAwb() {
 
 document.querySelector('#sky_awb').addEventListener('change', saveAwb)
 pollAwb()
-setInterval(pollAwb, 1000)
+setInterval(pollAwb, 3000)
