@@ -114,16 +114,14 @@ The pads used for recovery are:
 | **RX** | Serial data, PC → device |
 | **GROUND** | Signal ground (either of the two labeled pads works) |
 | **GPIO0** | Momentarily jumper to GROUND to enter download mode |
-| **+5V** (TP12) | Optional — power the board from your USB adapter |
+| **+5V** | Power. This is the only supply pad on the board |
 
-### 2. Wire a 3.3 V USB-UART adapter
+### 2. Wire a USB-UART adapter
 
 - Adapter **TX → RX** (on the board)
 - Adapter **RX → TX** (on the board)
 - Adapter **GND → GROUND**
-- If your adapter provides 5 V, it can go to **+5V** on the board. Otherwise, power the camera from its own supply.
-
-Use a 3.3 V logic-level adapter (FTDI FT232RL, CP2102, CH340 in 3.3 V mode, etc.). **Do not feed 5 V into TX or RX.**
+- Adapter **5 V → +5V** (this is how the board is powered)
 
 ### 3. Put the ESP32 in download mode
 
