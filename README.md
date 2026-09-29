@@ -118,6 +118,8 @@ The pads used for recovery are:
 
 ### 2. Wire a USB-UART adapter
 
+The adapter used here is the [DFRobot Rainbow Link](https://wiki.dfrobot.com/tel0190/). Its TTL port and 5 V output go to the pads below.
+
 - Adapter **TX → RX** (on the board)
 - Adapter **RX → TX** (on the board)
 - Adapter **GND → GROUND**
