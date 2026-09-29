@@ -50,6 +50,9 @@ esp_err_t camera_bringup(void);
 void      hp10_camera_boot(void);
 esp_err_t hp10_wifi_ap_start(void);
 int       hp10_wifi_sta_apply(const char *ssid, const char *pwd);
+/* Non-blocking scan. ssid NULL scans every network. Returns ESP_ERR_TIMEOUT
+ * instead of waiting forever, so a lost scan-done event cannot wedge the caller. */
+esp_err_t hp10_wifi_scan_timed(const uint8_t *ssid, bool show_hidden, uint32_t timeout_ms);
 bool      hp10_sta_has_ip(void);
 
 void      hp10_cfg_load(void);
@@ -65,6 +68,7 @@ void      hp10_wd_note_camera_ok(void);
 bool      hp10_wd_note_camera_fail(const char *detail);
 void      hp10_wd_note_upload_ok(void);
 bool      hp10_wd_note_upload_fail(const char *detail);
+bool      hp10_wd_note_http_stall(void);
 void      hp10_reboot_soon(void);
 void      hp10_factory_reset(void);
 bool      hp10_mdns_host_ok(const char *s);

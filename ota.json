@@ -1,8 +1,8 @@
 {
   "code": 0,
   "data": {
-    "version": "WittSky_1.0.3",
-    "content": "Three switchable looks (Dark, Station warm, Technical), a redesigned Firmware card, and a fix for the Auto upgrade toggle.",
-    "attach1file": "https://raw.githubusercontent.com/Damiasroca/WittSky/main/WittSky_1.0.3.bin"
+    "version": "WittSky_1.0.4",
+    "content": "A Wi-Fi scan can no longer freeze the web UI, and a stalled page reboots the camera on its own.",
+    "attach1file": "https://raw.githubusercontent.com/Damiasroca/WittSky/main/WittSky_1.0.4.bin"
   }
 }

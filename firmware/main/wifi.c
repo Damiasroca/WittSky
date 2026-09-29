@@ -26,6 +26,7 @@ static const char *TAG = "hp10";
 #define EVT_GOT_IP   (1u << 0)
 #define EVT_STA_DOWN (1u << 1)
 #define EVT_LINK     (1u << 2)
+#define EVT_SCAN     (1u << 3)
 #define EVT_NO_AP    (1u << 6)
 #define EVT_BAD_PWD  (1u << 7)
 #define EVT_OTHER    (1u << 8)
@@ -129,6 +130,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     }
     if (base != WIFI_EVENT)
         return;
+    if (id == WIFI_EVENT_SCAN_DONE) {
+        xEventGroupSetBits(s_wifi_evt, EVT_SCAN);
+        return;
+    }
     if (id == WIFI_EVENT_AP_STACONNECTED && data) {
         wifi_event_ap_staconnected_t *e = data;
         char mac[18];
@@ -188,6 +193,32 @@ static int sta_apply_finish(int rc)
     return rc;
 }
 
+esp_err_t hp10_wifi_scan_timed(const uint8_t *ssid, bool show_hidden, uint32_t timeout_ms)
+{
+    if (!s_wifi_evt)
+        return ESP_ERR_INVALID_STATE;
+    if (timeout_ms == 0)
+        timeout_ms = 8000;
+
+    wifi_scan_config_t sc = {
+        .ssid = (uint8_t *)ssid,
+        .show_hidden = show_hidden,
+    };
+    xEventGroupClearBits(s_wifi_evt, EVT_SCAN);
+    esp_err_t err = esp_wifi_scan_start(&sc, false);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "scan start: %s", esp_err_to_name(err));
+        return err;
+    }
+    uint32_t bits = xEventGroupWaitBits(s_wifi_evt, EVT_SCAN, pdTRUE, pdTRUE,
+                                         pdMS_TO_TICKS(timeout_ms));
+    if (bits & EVT_SCAN)
+        return ESP_OK;
+    ESP_LOGW(TAG, "scan timed out after %ums", (unsigned)timeout_ms);
+    esp_wifi_scan_stop();
+    return ESP_ERR_TIMEOUT;
+}
+
 int hp10_wifi_sta_apply(const char *ssid, const char *pwd)
 {
     if (!ssid || !ssid[0])
@@ -211,11 +242,7 @@ int hp10_wifi_sta_apply(const char *ssid, const char *pwd)
     cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
     cfg.sta.failure_retry_cnt = 8;
 
-    wifi_scan_config_t sc = {
-        .ssid = (uint8_t *)ssid,
-        .show_hidden = true,
-    };
-    if (esp_wifi_scan_start(&sc, true) == ESP_OK) {
+    if (hp10_wifi_scan_timed((const uint8_t *)ssid, true, 8000) == ESP_OK) {
         uint16_t n = 1;
         wifi_ap_record_t rec = {0};
         if (esp_wifi_scan_get_ap_records(&n, &rec) == ESP_OK && n && rec.ssid[0]) {

@@ -2,7 +2,7 @@
 
 Replacement firmware for the **Ecowitt HP10 / HP10X** sky camera. Runs on the camera's own ESP32 hardware, keeps the same 4 MB flash layout, and gives you a self-contained web UI instead of the stock cloud-tethered one.
 
-Current release: **WittSky_1.0.3**. See `firmware/main/version.h`.
+Current release: **WittSky_1.0.4**. See `firmware/main/version.h`.
 
 ![Ecowitt HP10 camera board, front side with the OV2640 lens module](./HP10_CAM.jpg)
 
@@ -64,7 +64,7 @@ You bring up a small local network on your PC that impersonates Ecowitt's OTA se
 
 Full walkthrough: **[OTA_SPOOF/README.md](./OTA_SPOOF/README.md)**.
 
-Point the spoof's `FW_PATH` at the release binary — either `firmware/build/WittSky_1.0.3.bin` after building locally, or the `WittSky_1.0.3.bin` attached to the [GitHub release](https://github.com/Damiasroca/WittSky/releases).
+Point the spoof's `FW_PATH` at the release binary — either `firmware/build/WittSky_1.0.4.bin` after building locally, or the `WittSky_1.0.4.bin` attached to the [GitHub release](https://github.com/Damiasroca/WittSky/releases).
 
 ### Option B — Serial flash
 

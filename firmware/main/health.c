@@ -235,6 +235,18 @@ void hp10_wd_note_upload_ok(void)
         xSemaphoreGive(s_mu);
 }
 
+bool hp10_wd_note_http_stall(void)
+{
+    bool rb = false;
+    if (s_mu)
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+    ESP_LOGW(TAG, "http server stalled");
+    rb = maybe_reboot("http_stall");
+    if (s_mu)
+        xSemaphoreGive(s_mu);
+    return rb;
+}
+
 bool hp10_wd_note_upload_fail(const char *detail)
 {
     bool rb = false;

@@ -20,7 +20,7 @@ Your PC runs four small services to make that happen: a Wi-Fi access point, DHCP
 - Windows 11.
 - A USB Wi-Fi adapter that can host a network. Most built-in laptop radios cannot. Check before you go further (next section).
 - Python 3 on `PATH`.
-- The WittSky application image, for example `WittSky_1.0.3.bin` from a local build (`firmware/build/`) or from the GitHub release. It must be the app `.bin`, not an ELF and not a full-chip dump.
+- The WittSky application image, for example `WittSky_1.0.4.bin` from a local build (`firmware/build/`) or from the GitHub release. It must be the app `.bin`, not an ELF and not a full-chip dump.
 - The camera still running stock firmware, and you able to open its web page (its own `HP10-WIFI` network) so you can point it at the lab network and start the upgrade.
 
 ## 1. Check that the adapter can host a network
@@ -78,7 +78,7 @@ From the `OTA_SPOOF` folder, copy the example settings and place the image next 
 ```powershell
 cd OTA_SPOOF
 copy settings.env.example settings.env
-copy ..\firmware\build\WittSky_1.0.3.bin firmware\fw.bin
+copy ..\firmware\build\WittSky_1.0.4.bin firmware\fw.bin
 ```
 
 `firmware\` under `OTA_SPOOF` is the default location. It is gitignored. If you would rather point at the build output directly, set `FW_PATH` in `settings.env` to that file. A relative path is resolved from the `OTA_SPOOF` folder.

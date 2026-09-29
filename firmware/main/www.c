@@ -5,7 +5,11 @@
 #include "cJSON.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "nvs.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +20,64 @@
 #include "www_priv.h"
 
 static const char *TAG = "www";
+
+/* Port 80's listen queue fills when its thread is stuck, so a probe to
+ * port 80 would time out the same way a browser does and could block this
+ * task too. The heartbeat goes through httpd's control socket instead.
+ * The thread runs beat_work only when it is idle. If that stamp goes stale
+ * for two minutes, the existing watchdog reboots (same cap as camera/upload).
+ * A live MJPEG client holds port 81 on purpose, so that server is not watched. */
+#define HTTP_BEAT_MS  15000
+#define HTTP_STALL_US (120LL * 1000000LL)
+
+static httpd_handle_t  s_http;
+static volatile int64_t s_beat_us;
+static volatile bool    s_beat_posting;
+
+static void beat_work(void *arg)
+{
+    (void)arg;
+    s_beat_us = esp_timer_get_time();
+}
+
+static void beat_post(void *arg)
+{
+    (void)arg;
+    if (s_http)
+        httpd_queue_work(s_http, beat_work, NULL);
+    s_beat_posting = false;
+    vTaskDelete(NULL);
+}
+
+static void http_watch_task(void *arg)
+{
+    (void)arg;
+    s_beat_us = esp_timer_get_time();
+    bool noted = false;
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(HTTP_BEAT_MS));
+        if (hp10_ota_busy()) {
+            s_beat_us = esp_timer_get_time();
+            noted = false;
+            continue;
+        }
+        int64_t age = esp_timer_get_time() - s_beat_us;
+        if (age > HTTP_STALL_US) {
+            if (!noted) {
+                noted = true;
+                ESP_LOGW(TAG, "port 80 stalled %ds", (int)(age / 1000000));
+                hp10_wd_note_http_stall();
+            }
+            continue;
+        }
+        noted = false;
+        if (!s_beat_posting && s_http) {
+            s_beat_posting = true;
+            if (xTaskCreate(beat_post, "http_beat", 3072, NULL, 3, NULL) != pdPASS)
+                s_beat_posting = false;
+        }
+    }
+}
 
 extern const uint8_t login_html_start[] asm("_binary_login_html_start");
 extern const uint8_t login_html_end[]   asm("_binary_login_html_end");
@@ -319,8 +381,9 @@ void www_start(void)
     cfg.recv_wait_timeout = 60;
     cfg.send_wait_timeout = 60;
 
-    httpd_handle_t http = NULL;
-    ESP_ERROR_CHECK(httpd_start(&http, &cfg));
+    s_http = NULL;
+    ESP_ERROR_CHECK(httpd_start(&s_http, &cfg));
+    httpd_handle_t http = s_http;
 
     register_get(http, "/", root_get);
     register_get(http, "/login.html", login_html_get);
@@ -354,4 +417,5 @@ void www_start(void)
     www_overlay_register(http);
 
     ESP_LOGI(TAG, "httpd :%d  stream :%d", HP10_HTTP_PORT, HP10_STREAM_PORT);
+    xTaskCreate(http_watch_task, "http_wd", 3072, NULL, 3, NULL);
 }

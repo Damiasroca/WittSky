@@ -372,11 +372,15 @@ static esp_err_t scan_ssid(httpd_req_t *req)
 {
     if (guest_json(req))
         return ESP_OK;
-    wifi_scan_config_t sc = { .show_hidden = true };
-    int tries = 0;
-    while (esp_wifi_scan_start(&sc, true) != ESP_OK && tries++ < 16)
-        vTaskDelay(pdMS_TO_TICKS(500));
-    if (tries >= 16) {
+    /* The scan runs in the Wi-Fi driver. This thread only waits, and only
+     * for 8s, so a lost scan-done event cannot freeze port 80. */
+    esp_err_t err = ESP_FAIL;
+    for (int tries = 0; tries < 3 && err != ESP_OK && err != ESP_ERR_TIMEOUT; tries++) {
+        if (tries)
+            vTaskDelay(pdMS_TO_TICKS(300));
+        err = hp10_wifi_scan_timed(NULL, true, 8000);
+    }
+    if (err != ESP_OK) {
         cJSON *o = cJSON_CreateObject();
         cJSON_AddStringToObject(o, "status", "error");
         cJSON_AddStringToObject(o, "msg", "Sorry, scanning WiFi AP timed out");
