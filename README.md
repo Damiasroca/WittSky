@@ -4,7 +4,7 @@ Replacement firmware for the **Ecowitt HP10 / HP10X** sky camera. Runs on the ca
 
 Current release: **WittSky_1.0.4**. See `firmware/main/version.h`.
 
-![Ecowitt HP10 camera board, front side with the OV2640 lens module](./HP10_CAM.jpg)
+![Ecowitt HP10 camera board, front side with the OV2640 lens module](./media/HP10_CAM.jpg)
 
 ---
 
@@ -98,13 +98,13 @@ After WittSky is running:
 
 ## Recovery — restoring stock firmware
 
-If WittSky won't boot, won't join Wi-Fi, or the camera is otherwise unreachable, you can always restore the stock Ecowitt firmware over serial. The image is in [`STOCK_FIRMWARE/HP10_V1.1.1.bin`](./STOCK_FIRMWARE/HP10_V1.1.1.bin).
+If WittSky won't boot, won't join Wi-Fi, or the camera is otherwise unreachable, you can always restore the stock Ecowitt firmware over serial. The image is in [`StockFirmwarev1.1.1/HP10_V1.1.1.bin`](./StockFirmwarev1.1.1/HP10_V1.1.1.bin).
 
 ### 1. Open the camera
 
 Take the camera apart to expose the ESP32-WROOM-32D module. The pads you need are on the right edge and bottom of the board:
 
-![HP10 UART pads and download-mode pins](./HP10.jpg)
+![HP10 UART pads and download-mode pins](./media/HP10.jpg)
 
 The pads used for recovery are:
 
@@ -140,13 +140,13 @@ The chip is now waiting for a serial command on the UART.
 The stock image is an app-only image (~1.1 MB) that lives at OTA slot 0, offset `0x10000`:
 
 ```bash
-python -m esptool --chip esp32 -p <PORT> -b 460800 write_flash 0x10000 STOCK_FIRMWARE/HP10_V1.1.1.bin
+python -m esptool --chip esp32 -p <PORT> -b 460800 write_flash 0x10000 StockFirmwarev1.1.1/HP10_V1.1.1.bin
 ```
 
 Or, if you have ESP-IDF exported:
 
 ```bash
-esptool.py --chip esp32 -p <PORT> -b 460800 write_flash 0x10000 STOCK_FIRMWARE/HP10_V1.1.1.bin
+esptool.py --chip esp32 -p <PORT> -b 460800 write_flash 0x10000 StockFirmwarev1.1.1/HP10_V1.1.1.bin
 ```
 
 Then power-cycle the camera (or reset without the GPIO0 jumper). It should come back up as a stock HP10 with its original `HP10-WIFI` access point.
@@ -171,12 +171,11 @@ Output is `firmware/build/hp10_bringup.bin` (renamed to `firmware/build/WittSky_
 ## Repository layout
 
 ```
-firmware/         ESP-IDF project (main app + embedded web UI)
-firmware/web/     Web UI source (HTML / CSS / JS embedded into the app)
-OTA_SPOOF/        PC-side scripts to install WittSky without opening the camera
-STOCK_FIRMWARE/   Ecowitt HP10 V1.1.1 image for recovery
-tools/            Overlay-asset regeneration script and preview overlay tool
-ota.json          Manifest served to WittSky clients checking for updates
-HP10.jpg          UART pinout photo for recovery
-HP10_CAM.jpg      Front-side photo of the camera board
+firmware/              ESP-IDF project (main app + embedded web UI)
+firmware/web/          Web UI source (HTML / CSS / JS embedded into the app)
+OTA_SPOOF/             PC-side scripts to install WittSky without opening the camera
+StockFirmwarev1.1.1/   Ecowitt HP10 V1.1.1 image for recovery
+tools/                 Overlay-asset regeneration script and preview overlay tool
+media/                 README photos and overlay source images
+ota.json               Manifest served to WittSky clients checking for updates
 ```

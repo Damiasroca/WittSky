@@ -5,7 +5,7 @@ From the repository root:
 
     python tools/gen_overlay_assets.py
 
-Needs Pillow. Reads tools/fonts/DejaVuSans-Bold.ttf, rainy.png, and rosa4.png.
+Needs Pillow. Reads tools/fonts/DejaVuSans-Bold.ttf, media/rainy.png, and media/rosa4.png.
 Rewrites firmware/main/overlay_font.c, overlay_font.h, overlay_assets.c, and
 overlay_assets.h.
 
@@ -23,8 +23,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FONT_PATH = ROOT / "tools" / "fonts" / "DejaVuSans-Bold.ttf"
-RAIN_PATH = ROOT / "rainy.png"
-ROSE_PATH = ROOT / "rosa4.png"
+RAIN_PATH = ROOT / "media" / "rainy.png"
+ROSE_PATH = ROOT / "media" / "rosa4.png"
 OUT_DIR = ROOT / "firmware" / "main"
 
 FONT_PX = (14, 22, 32)
