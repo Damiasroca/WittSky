@@ -32,7 +32,7 @@ Recovery is possible in almost every case, but it requires **opening the camera 
 
 ## What it barely does
 
-- **Sky statistics.** Off by default. When you enable it, the firmware decodes each JPEG to a small buffer and computes cloud fraction, saturation, luma, sharpness, exposure, gain, and a relative "light index". It is genuinely useful for tracking daytime sky conditions, but it is **not calibrated**: the cloud-vs-blue threshold is a fixed R/B ratio, the light index is relative not lux, and cloud numbers are withheld outside daylight or when the sky mask lands on a roof. Treat the numbers as trends, not measurements. The detailed math is in the old README (`README.old.md`, kept locally, gitignored).
+- **Sky statistics.** Off by default. When you enable it, the firmware decodes each JPEG to a small buffer and computes cloud fraction, saturation, luma, sharpness, exposure, gain, and a relative "light index". It is genuinely useful for tracking daytime sky conditions, but it is **not calibrated**: the cloud-vs-blue threshold is a fixed R/B ratio, the light index is relative not lux, and cloud numbers are withheld outside daylight or when the sky mask lands on a roof. Treat the numbers as trends, not measurements.
 
 ## What it does not do
 
