@@ -75,6 +75,7 @@ function sidebar() {
         <a class="sidebar-a" href="./status.html">Overview</a>
         <a class="sidebar-a" href="./video.html">Camera</a>
         <a class="sidebar-a" href="./skystats.html">Sky</a>
+        <a class="sidebar-a" href="./overlay.html">Overlay</a>
         <a class="sidebar-a" href="./capture.html">Uploads</a>
         <a class="sidebar-a" href="./localNetwork.html">Network</a>
         <a class="sidebar-a" href="./system.html">System</a>
