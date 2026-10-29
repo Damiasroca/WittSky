@@ -111,7 +111,7 @@ int wx_conv_x10(int32_t m, int32_t *out)
     if (!out || m < 0)
         return -1;
     /* milli -> tenths: divide by 100 with half-up rounding. */
-    *out = (m + 50) / 100;
+    *out = m / 100 + ((m % 100) >= 50 ? 1 : 0);
     return 0;
 }
 
@@ -119,7 +119,7 @@ int wx_conv_wm2(int32_t m, int32_t *out)
 {
     if (!out || m < 0 || m > 20000000)
         return -1;
-    *out = (m + 500) / 1000;
+    *out = m / 1000 + ((m % 1000) >= 500 ? 1 : 0);
     return 0;
 }
 
@@ -127,7 +127,7 @@ int wx_conv_count(int32_t m, int32_t *out)
 {
     if (!out || m < 0)
         return -1;
-    *out = (m + 500) / 1000;
+    *out = m / 1000 + ((m % 1000) >= 500 ? 1 : 0);
     return 0;
 }
 

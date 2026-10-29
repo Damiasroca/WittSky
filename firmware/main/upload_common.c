@@ -53,16 +53,24 @@ void log_sta(void)
 
 void log_cfg(const char *when)
 {
+    char safe[96];
+    hp10_url_redact(safe, sizeof safe, g_upload_url);
     ESP_LOGI(TAG, "%s dest=%s eco=%d custom=%d ost=%u (%u min) url='%s' cam=%d sta=%d",
              when, dest_name(), g_ecowitt_en ? 1 : 0, g_upload_en ? 1 : 0,
              g_ost_interval, (unsigned)g_ost_interval * 5,
-             g_upload_url[0] ? g_upload_url : "",
+             safe,
              g_bCameraOk ? 1 : 0, hp10_sta_has_ip() ? 1 : 0);
 }
 
-static camera_fb_t *grab_once(void)
+/* *busy is set when the camera could not be locked in time. That is not a
+ * camera fault, so the caller must not try to recover it. */
+static camera_fb_t *grab_once(bool *busy)
 {
-    xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    *busy = false;
+    if (xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(30000)) != pdTRUE) {
+        *busy = true;
+        return NULL;
+    }
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb)
         xSemaphoreGive(g_cam_mu);
@@ -84,12 +92,20 @@ camera_fb_t *grab_frame(void)
             return NULL;
         }
     }
-    camera_fb_t *fb = grab_once();
+    bool busy;
+    camera_fb_t *fb = grab_once(&busy);
+    if (busy) {
+        ESP_LOGW(TAG, "grab: camera busy");
+        return NULL;
+    }
     if (!fb) {
         ESP_LOGE(TAG, "grab: esp_camera_fb_get returned null");
         esp_err_t rc = hp10_camera_recover();
-        if (rc == ESP_OK)
-            fb = grab_once();
+        if (rc == ESP_OK) {
+            fb = grab_once(&busy);
+            if (busy)
+                return NULL;
+        }
         else if (rc == ESP_ERR_INVALID_STATE)
             return NULL;
     }
@@ -186,8 +202,10 @@ void log_http_result(const char *kind, const char *url,
     int status = cli ? esp_http_client_get_status_code(cli) : 0;
     int clen = cli ? (int)esp_http_client_get_content_length(cli) : -1;
     int eno = cli ? esp_http_client_get_errno(cli) : -1;
+    char safe[96];
+    hp10_url_redact(safe, sizeof safe, url);
     ESP_LOGI(TAG, "%s POST %s -> %s http=%d len=%d errno=%d",
-             kind, url, esp_err_to_name(err), status, clen, eno);
+             kind, safe, esp_err_to_name(err), status, clen, eno);
     if (acc && acc->n) {
         scrub_log(acc->buf);
         ESP_LOGI(TAG, "%s body (%d): %s", kind, acc->n, acc->buf);

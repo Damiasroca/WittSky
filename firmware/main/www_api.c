@@ -301,10 +301,13 @@ static esp_err_t set_ws_settings(httpd_req_t *req)
     hp10_cfg_save();
     if (log_changed)
         hp10_ws_log_apply();
+    char safe_up[96], safe_ws[96];
+    hp10_url_redact(safe_up, sizeof safe_up, g_upload_url);
+    hp10_url_redact(safe_ws, sizeof safe_ws, g_ws_log_url);
     ESP_LOGI(TAG, "upload settings eco=%d custom=%d ost=%u url='%s' ws_log=%d lvl=%u ws='%s'",
              g_ecowitt_en ? 1 : 0, g_upload_en ? 1 : 0, g_ost_interval,
-             g_upload_url, g_ws_log_en ? 1 : 0, (unsigned)g_ws_log_level,
-             g_ws_log_url);
+             safe_up, g_ws_log_en ? 1 : 0, (unsigned)g_ws_log_level,
+             safe_ws);
     return httpd_resp_send(req, "200 OK", 6);
 }
 
@@ -822,8 +825,9 @@ static esp_err_t set_video_info(httpd_req_t *req)
         cJSON_DeleteItemFromObject(o, "resolution");
 
     if (json_has_exp_key(o)) {
-        hp10_cam_exp_t draft;
-        hp10_cam_exp_get(&draft);
+        hp10_cam_exp_t draft, prev;
+        hp10_cam_exp_get(&prev);
+        draft = prev;
         hp10_cam_exp_patch_json(o, &draft);
         const char *why = hp10_cam_exp_update(&draft);
         if (why) {
@@ -831,8 +835,14 @@ static esp_err_t set_video_info(httpd_req_t *req)
             ESP_LOGW("cam_exp", "live reject: %s", why);
             return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, why);
         }
-        if (g_bCameraOk)
-            hp10_cam_exp_apply_active_locked();
+        if (g_bCameraOk) {
+            why = hp10_cam_exp_apply_live(&prev);
+            if (why) {
+                cJSON_Delete(o);
+                ESP_LOGW("cam_exp", "live apply failed: %s", why);
+                return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, why);
+            }
+        }
     }
 
     sensor_t *s = g_bCameraOk ? esp_camera_sensor_get() : NULL;

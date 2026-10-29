@@ -25,7 +25,9 @@ static esp_err_t         s_now_err;
 
 static esp_err_t upload_now(void)
 {
-    ESP_LOGI(TAG, "custom start url='%s'", g_upload_url);
+    char safe[96];
+    hp10_url_redact(safe, sizeof safe, g_upload_url);
+    ESP_LOGI(TAG, "custom start url='%s'", safe);
     log_sta();
     if (!want_custom()) {
         ESP_LOGW(TAG, "custom abort: not selected");

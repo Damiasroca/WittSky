@@ -49,8 +49,10 @@ void hp10_sky_awb_apply(void)
 
 void hp10_sky_awb_apply_locked(void)
 {
-    if (g_cam_mu)
-        xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    if (g_cam_mu && xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(15000)) != pdTRUE) {
+        ESP_LOGW(TAG, "camera busy, white balance not applied");
+        return;
+    }
     hp10_sky_awb_apply();
     if (g_cam_mu)
         xSemaphoreGive(g_cam_mu);

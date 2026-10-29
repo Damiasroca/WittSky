@@ -358,8 +358,10 @@ static void transports_rebuild(void)
 
     s_run = true;
     refresh_status(path, remote, url);
+    char safe[96];
+    hp10_url_redact(safe, sizeof safe, url);
     ESP_LOGI(TAG, "armed path='%s' remote=%d url='%s' level=%u",
-             path, remote ? 1 : 0, url, (unsigned)level);
+             path, remote ? 1 : 0, safe, (unsigned)level);
 }
 
 static void broadcast(const char *line, int n)

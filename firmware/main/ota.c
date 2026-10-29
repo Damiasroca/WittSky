@@ -148,6 +148,47 @@ static int json_code(cJSON *code)
     return -1;
 }
 
+/* "WittSky_1.2.3" -> 1,2,3. Anything without a dotted number fails. */
+static bool ver_parse(const char *s, unsigned v[3])
+{
+    v[0] = v[1] = v[2] = 0;
+    while (*s && (*s < '0' || *s > '9'))
+        s++;
+    if (!*s)
+        return false;
+    for (int i = 0; i < 3; i++) {
+        if (*s < '0' || *s > '9')
+            return i > 0;
+        unsigned n = 0;
+        while (*s >= '0' && *s <= '9') {
+            if (n < 100000)
+                n = n * 10 + (unsigned)(*s - '0');
+            s++;
+        }
+        v[i] = n;
+        if (*s != '.')
+            return true;
+        s++;
+    }
+    return true;
+}
+
+/* A published build is only offered when it is newer than the running one.
+ * Equal or older is never an update, so a camera ahead of the published
+ * release is not pushed back to it. An unparsable remote keeps the old rule
+ * (offer if it differs). */
+static bool ver_offered(const char *remote)
+{
+    unsigned r[3], l[3];
+    if (!ver_parse(remote, r) || !ver_parse(HP10_VERSION, l))
+        return strcmp(remote, HP10_VERSION) != 0;
+    for (int i = 0; i < 3; i++) {
+        if (r[i] != l[i])
+            return r[i] > l[i];
+    }
+    return false;
+}
+
 static int ota_check_impl(void)
 {
     s_has_update = false;
@@ -225,7 +266,7 @@ static int ota_check_impl(void)
         snprintf(s_msg, sizeof s_msg, "OTA reply has no firmware URL");
         return -1;
     }
-    if (!s_ver[0] || strcmp(s_ver, HP10_VERSION) == 0) {
+    if (!s_ver[0] || !ver_offered(s_ver)) {
         snprintf(s_msg, sizeof s_msg, "Current version: %s", HP10_VERSION);
         return 0;
     }
@@ -318,7 +359,8 @@ void hp10_ota_poll_start(void)
 {
     if (!s_mu)
         s_mu = xSemaphoreCreateMutex();
-    xTaskCreate(ota_poll_task, "ota_poll", 12288, NULL, 3, NULL);
+    /* Measured: 8.8 KB of 12 KB were never touched. Internal RAM is tight. */
+    xTaskCreate(ota_poll_task, "ota_poll", 8192, NULL, 3, NULL);
 }
 
 static void ota_task(void *arg)
@@ -428,7 +470,13 @@ static void reboot_task(void *arg)
 
 void hp10_ota_reboot_soon(void)
 {
-    xTaskCreate(reboot_task, "ota_rb", 2048, NULL, 5, NULL);
+    /* Without this restart a finished upgrade never starts. Internal RAM is
+     * tight enough for the task to fail, so fall back to restarting here. */
+    if (xTaskCreate(reboot_task, "ota_rb", 2048, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "reboot task failed, restarting inline");
+        vTaskDelay(pdMS_TO_TICKS(1500));
+        esp_restart();
+    }
 }
 
 esp_err_t hp10_ota_local_begin(size_t total)

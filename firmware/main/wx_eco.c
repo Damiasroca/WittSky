@@ -10,6 +10,12 @@
 #include "wx_http.h"
 #endif
 
+/* Half-up division for m >= 0 without the overflow of (m + d / 2). */
+static int32_t rdiv(int32_t m, int32_t d)
+{
+    return m / d + ((m % d) >= d / 2 ? 1 : 0);
+}
+
 static void snprintf_num(char *dst, size_t n, double v)
 {
     int ip;
@@ -17,6 +23,8 @@ static void snprintf_num(char *dst, size_t n, double v)
     int neg = v < 0;
     if (neg)
         v = -v;
+    if (v > 2000000000.0)
+        v = 2000000000.0;
     ip = (int)v;
     frac = (int)((v - (double)ip) * 1000.0 + 0.5);
     if (frac >= 1000) {
@@ -301,7 +309,7 @@ static int take_solar_milli(ov_sample_t *o, int rc, int32_t milli, const char *u
         return 0;
     if (milli < 0)
         return -1;
-    set_i(o, OV_MEAS_SOLAR, &o->solar_wm2, (milli + 500) / 1000);
+    set_i(o, OV_MEAS_SOLAR, &o->solar_wm2, rdiv(milli, 1000));
     return 1;
 }
 
@@ -311,7 +319,7 @@ static int take_uv_milli(ov_sample_t *o, int rc, int32_t milli)
         return rc;
     if (milli < 0)
         return -1;
-    set_i(o, OV_MEAS_UV, &o->uv_x10, (milli + 50) / 100);
+    set_i(o, OV_MEAS_UV, &o->uv_x10, rdiv(milli, 100));
     return 1;
 }
 
@@ -321,7 +329,7 @@ static int take_x10_milli(ov_sample_t *o, int meas, int32_t *slot, int rc, int32
         return rc;
     if (milli < 0)
         return -1;
-    set_i(o, meas, slot, (milli + 50) / 100);
+    set_i(o, meas, slot, rdiv(milli, 100));
     return 1;
 }
 
@@ -331,7 +339,7 @@ static int take_count_milli(ov_sample_t *o, int meas, int32_t *slot, int rc, int
         return rc;
     if (milli < 0)
         return -1;
-    set_i(o, meas, slot, (milli + 500) / 1000);
+    set_i(o, meas, slot, rdiv(milli, 1000));
     return 1;
 }
 

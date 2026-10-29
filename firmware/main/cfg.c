@@ -16,6 +16,32 @@ bool    g_upload_en;
 bool    g_ecowitt_en;
 char    g_upload_url[HP10_UPLOAD_URL_MAX];
 uint8_t g_ost_interval = 1;
+void hp10_url_redact(char *dst, size_t n, const char *url)
+{
+    const char *p = url ? url : "";
+    const char *host = strstr(p, "://");
+    const char *at = NULL;
+    size_t o = 0;
+
+    if (!dst || !n)
+        return;
+    host = host ? host + 3 : p;
+    for (const char *q = host; *q && *q != '/' && *q != '?' && *q != '#'; q++) {
+        if (*q == '@')
+            at = q;
+    }
+    for (const char *q = p; q < host && o + 1 < n; q++)
+        dst[o++] = *q;
+    p = at ? at + 1 : host;
+    for (; *p && *p != '?' && *p != '#' && o + 1 < n; p++)
+        dst[o++] = *p;
+    if ((*p == '?' || *p == '#') && o + 4 < n) {
+        memcpy(dst + o, "?...", 4);
+        o += 4;
+    }
+    dst[o] = 0;
+}
+
 char    g_ota_url[HP10_UPLOAD_URL_MAX] = HP10_OTA_CHECK_URL;
 _Static_assert(sizeof(HP10_OTA_CHECK_URL) <= HP10_UPLOAD_URL_MAX, "OTA check URL longer than 127 characters");
 

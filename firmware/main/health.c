@@ -153,7 +153,13 @@ void hp10_reboot_soon(void)
     if (s_rebooting)
         return;
     s_rebooting = true;
-    xTaskCreate(reboot_task, "hp10_rb", 2048, NULL, 5, NULL);
+    /* Internal RAM is tight. If the task cannot start, restart here: a reboot
+     * that never happens would leave a stalled camera stalled for good. */
+    if (xTaskCreate(reboot_task, "hp10_rb", 2048, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "reboot task failed, restarting inline");
+        vTaskDelay(pdMS_TO_TICKS(1500));
+        esp_restart();
+    }
 }
 
 static bool maybe_reboot(const char *detail)

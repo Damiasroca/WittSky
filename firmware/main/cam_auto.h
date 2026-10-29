@@ -17,6 +17,10 @@ typedef enum {
  * sampling task. Call once, after the camera mutex exists. */
 void hp10_cam_auto_start(void);
 
+/* Queues the post-apply frame settle on the sampling task so the port 80
+ * worker is not held for several frames. False if the task is not running. */
+bool hp10_cam_auto_request_settle(void);
+
 const char *hp10_cam_auto_save_night(void);
 const char *hp10_cam_auto_apply(hp10_cam_mode_t mode, bool automatic, float trigger_ev);
 void hp10_cam_auto_add_json(struct cJSON *o);

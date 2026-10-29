@@ -207,7 +207,11 @@ static void cal_task(void *arg)
         return;
     }
 
-    xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    if (xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(30000)) != pdTRUE) {
+        set_status(3, "The camera is busy. Try again.");
+        vTaskDelete(NULL);
+        return;
+    }
     held = true;
 
     set_status(1, "Settling automatic white balance");

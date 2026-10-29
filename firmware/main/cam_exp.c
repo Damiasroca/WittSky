@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "cam_auto.h"
 #include "cam_exp.h"
 #include "hp10_bringup.h"
 #include "sky_awb.h"
@@ -752,4 +753,31 @@ void hp10_cam_exp_apply_locked(const hp10_cam_exp_t *cfg)
 void hp10_cam_exp_apply_active_locked(void)
 {
     hp10_cam_exp_apply_locked(&s_active);
+}
+
+const char *hp10_cam_exp_apply_live(const hp10_cam_exp_t *prev)
+{
+    const char *why;
+
+    if (g_cam_mu && xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(15000)) != pdTRUE) {
+        ESP_LOGW(TAG, "camera busy, exposure not applied");
+        if (prev)
+            s_active = *prev;
+        return "Camera busy";
+    }
+    if (hp10_cam_exp_apply(&s_active) != 0) {
+        why = s_last_err ? s_last_err : "Sensor rejected the settings";
+        if (prev) {
+            s_active = *prev;
+            hp10_cam_exp_apply(prev);
+        }
+        if (g_cam_mu)
+            xSemaphoreGive(g_cam_mu);
+        return why;
+    }
+    if (!hp10_cam_auto_request_settle())
+        hp10_cam_exp_post_apply(&s_active);
+    if (g_cam_mu)
+        xSemaphoreGive(g_cam_mu);
+    return NULL;
 }

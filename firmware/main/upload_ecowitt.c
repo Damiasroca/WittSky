@@ -72,7 +72,9 @@ static int eco_errcode(const char *resp)
 static esp_err_t upload_ecowitt_url(const char *url, const char *body, int body_n)
 {
     http_acc_t acc = {0};
-    ESP_LOGI(TAG, "ecowitt POST %s body=%d", url, body_n);
+    char safe[96];
+    hp10_url_redact(safe, sizeof safe, url);
+    ESP_LOGI(TAG, "ecowitt POST %s body=%d", safe, body_n);
     esp_http_client_config_t cfg = {
         .url = url,
         .method = HTTP_METHOD_POST,

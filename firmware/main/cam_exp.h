@@ -50,6 +50,10 @@ void hp10_cam_exp_save(nvs_handle_t h);
 int hp10_cam_exp_apply(const hp10_cam_exp_t *cfg);
 void hp10_cam_exp_apply_locked(const hp10_cam_exp_t *cfg);
 void hp10_cam_exp_apply_active_locked(void);
+/* Applies the active exposure under the camera lock. On failure the sensor and
+ * the active settings go back to prev, and the reason is returned. The frame
+ * settle runs in the background. */
+const char *hp10_cam_exp_apply_live(const hp10_cam_exp_t *prev);
 void hp10_cam_exp_post_apply(const hp10_cam_exp_t *applied);
 const char *hp10_cam_exp_last_error(void);
 

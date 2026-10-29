@@ -82,6 +82,8 @@ void      hp10_sta_restore_start(void);
 const char *hp10_sta_link(void);
 esp_err_t hp10_camera_retry(void);
 esp_err_t hp10_camera_ensure(void);
+/* Copies url without any user:password@ and without its query string, for logs. */
+void hp10_url_redact(char *dst, size_t n, const char *url);
 esp_err_t hp10_camera_recover(void);
 bool      hp10_ap_pwd_ok(const char *s);
 

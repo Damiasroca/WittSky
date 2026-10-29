@@ -47,6 +47,10 @@ static const char *TAG = "autosw";
 #define TICK_MS           5000
 #define TELEMETRY_MS      60000UL
 #define CAM_LOCK_MS       3000
+#define POLL_WINDOW_MS    120000UL
+/* Internal RAM is tight (about 12 KB free at runtime), and a task stack comes
+ * out of it. 6 KB measured 3.8 KB of headroom. Do not grow it casually. */
+#define TASK_STACK        6144
 
 typedef struct {
     bool     enabled;
@@ -131,6 +135,9 @@ static bool              s_applying;
 static uint32_t          s_next_telemetry_ms;
 static TaskHandle_t      s_task;
 static volatile hp10_cam_mode_t s_pending;
+static volatile bool     s_settle_req;
+static volatile bool     s_polled;
+static volatile uint32_t s_last_poll_ms;
 
 static uint32_t now_ms(void)
 {
@@ -779,9 +786,10 @@ static void switching_service(uint32_t now)
         snprintf(ev_text, sizeof ev_text, "%.1f", scene.ev);
     else
         snprintf(ev_text, sizeof ev_text, "-");
-    ESP_LOGI(TAG, "luma avg=%u lin=%u scene=%s ev=%s mode=%s low=%u high=%u%s",
+    ESP_LOGI(TAG, "luma avg=%u lin=%u scene=%s ev=%s mode=%s low=%u high=%u%s stack_free=%u",
              luma.avg, luma.lin_mean, scene_status_name(scene.status), ev_text,
-             mode_name(mode), low_count, high_count, dwell ? " dwell" : "");
+             mode_name(mode), low_count, high_count, dwell ? " dwell" : "",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL));
     if (dwell)
         return;
     trigger_ev = scene.status == SCENE_OK ? scene.ev : NAN;
@@ -789,6 +797,22 @@ static void switching_service(uint32_t now)
         hp10_cam_auto_apply(HP10_MODE_NIGHT, true, trigger_ev);
     else if (to_day)
         hp10_cam_auto_apply(HP10_MODE_DAY, true, trigger_ev);
+}
+
+/* Stack headroom of every task, to size them against the tight internal RAM. */
+static void log_task_stacks(void)
+{
+    static const char *names[] = {
+        "cam_auto", "eco", "upload", "ota_poll", "systime", "sta_link", "ap_auto",
+        "http_beat", "http_wd", "ws_log", "httpd", "tiT", "sys_evt", "wifi",
+        "esp_timer", "mdns", "main",
+    };
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
+        TaskHandle_t h = xTaskGetHandle(names[i]);
+        if (h)
+            ESP_LOGI(TAG, "stack %-10s free=%u", names[i],
+                     (unsigned)(uxTaskGetStackHighWaterMark(h) * sizeof(StackType_t)));
+    }
 }
 
 /* Keeps the scene EV on the page while switching is off, so thresholds can
@@ -799,6 +823,10 @@ static void telemetry_service(uint32_t now)
     scene_t scene;
     hp10_cam_live_t live;
 
+    /* Only while someone has the Camera page open: each sample holds the
+     * camera for about a second and allocates a JPEG-sized buffer. */
+    if (!s_polled || (int32_t)(now - s_last_poll_ms) > (int32_t)POLL_WINDOW_MS)
+        return;
     if ((int32_t)(now - s_next_telemetry_ms) < 0 || !sampling_allowed())
         return;
     s_next_telemetry_ms = now + TELEMETRY_MS;
@@ -812,9 +840,19 @@ static void telemetry_service(uint32_t now)
                  live.gain_reg, hp10_cam_gain_multiplier(live.gain_reg),
                  (unsigned)hp10_cam_exp_estimated_ms(), (unsigned)hp10_cam_exp_measured_ms());
     }
+    {
+        static uint32_t next_stk_ms;
+        if ((int32_t)(now - next_stk_ms) >= 0) {
+            next_stk_ms = now + 600000UL;
+            log_task_stacks();
+        }
+    }
     if (scene.status == SCENE_OK)
-        ESP_LOGI(TAG, "scene ev=%.1f exp=%.1fms gain=x%.2f luma=%u", scene.ev,
-                 scene.exposure_ms, scene.gain, luma.avg);
+        ESP_LOGI(TAG, "scene ev=%.1f exp=%.1fms gain=x%.2f luma=%u stack_free=%u int_free=%u int_min=%u", scene.ev,
+                 scene.exposure_ms, scene.gain, luma.avg,
+                 (unsigned)uxTaskGetStackHighWaterMark(NULL),
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                 (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     else
         ESP_LOGI(TAG, "scene %s luma=%u", scene_status_name(scene.status), luma.avg);
 }
@@ -831,6 +869,14 @@ static void auto_task(void *arg)
             s_pending = HP10_MODE_UNKNOWN;
             hp10_cam_auto_apply(want, false, NAN);
         }
+        if (s_settle_req) {
+            s_settle_req = false;
+            if (g_cam_mu && g_bCameraOk &&
+                xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(15000)) == pdTRUE) {
+                hp10_cam_exp_post_apply(NULL);
+                xSemaphoreGive(g_cam_mu);
+            }
+        }
         now = now_ms();
         /* Let boot, the first stream and the first upload settle first. */
         if (now < 45000)
@@ -842,6 +888,15 @@ static void auto_task(void *arg)
 
 /* A manual switch runs here, not on the port 80 worker: settling can take
  * several frames and that worker must stay free. */
+bool hp10_cam_auto_request_settle(void)
+{
+    if (!s_task)
+        return false;
+    s_settle_req = true;
+    xTaskNotifyGive(s_task);
+    return true;
+}
+
 static const char *queue_apply(hp10_cam_mode_t mode)
 {
     bool has;
@@ -850,11 +905,27 @@ static const char *queue_apply(hp10_cam_mode_t mode)
     unlock();
     if (!has)
         return "No night preset";
-    if (s_pending != HP10_MODE_UNKNOWN || !s_task)
+    if (!s_task)
+        return "Still starting up. Try again in a minute.";
+    if (s_pending != HP10_MODE_UNKNOWN)
         return "Switch already in progress";
     s_pending = mode;
     xTaskNotifyGive(s_task);
     return NULL;
+}
+
+/* The stack comes out of internal RAM, which is at its lowest during boot
+ * (the 23-byte low point was seen before 50 s). The task idles for its first
+ * 45 s anyway, so it is only created once boot has settled. */
+static esp_timer_handle_t s_start_timer;
+
+static void start_task_cb(void *arg)
+{
+    (void)arg;
+    if (xTaskCreate(auto_task, "cam_auto", TASK_STACK, NULL, 2, &s_task) != pdPASS) {
+        ESP_LOGW(TAG, "task create failed, retrying in 30 s");
+        esp_timer_start_once(s_start_timer, 30LL * 1000000LL);
+    }
 }
 
 void hp10_cam_auto_start(void)
@@ -868,8 +939,12 @@ void hp10_cam_auto_start(void)
     }
     load_all();
     s_next_telemetry_ms = now_ms() + TELEMETRY_MS;
-    if (xTaskCreate(auto_task, "cam_auto", 6144, NULL, 2, &s_task) != pdPASS)
-        ESP_LOGE(TAG, "task create failed");
+    {
+        const esp_timer_create_args_t args = { .callback = start_task_cb, .name = "auto_start" };
+        if (esp_timer_create(&args, &s_start_timer) != ESP_OK ||
+            esp_timer_start_once(s_start_timer, 50LL * 1000000LL) != ESP_OK)
+            ESP_LOGE(TAG, "start timer failed, switching disabled");
+    }
 }
 
 /* ---- web ---------------------------------------------------------------- */
@@ -982,8 +1057,13 @@ void hp10_cam_auto_add_json(cJSON *o)
 static esp_err_t auto_get(httpd_req_t *req)
 {
     cJSON *o;
+    uint32_t now = now_ms();
     if (guest_json(req))
         return ESP_OK;
+    if (!s_polled || (int32_t)(now - s_last_poll_ms) > (int32_t)POLL_WINDOW_MS)
+        s_next_telemetry_ms = now;
+    s_last_poll_ms = now;
+    s_polled = true;
     o = cJSON_CreateObject();
     cJSON_AddBoolToObject(o, "ok", true);
     hp10_cam_auto_add_json(o);

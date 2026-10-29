@@ -230,8 +230,14 @@ esp_err_t hp10_camera_ensure(void)
 
 esp_err_t hp10_camera_retry(void)
 {
-    if (g_cam_mu)
-        xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    /* Reached from the port 80 worker. A holder that keeps the camera (a
+     * white-balance calibration, say) must not freeze the web UI. INVALID_STATE
+     * is the same "not now" answer the recover throttle gives, so callers do not
+     * count it as a camera failure. */
+    if (g_cam_mu && xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(15000)) != pdTRUE) {
+        ESP_LOGW(TAG, "camera busy, retry skipped");
+        return ESP_ERR_INVALID_STATE;
+    }
     if (g_bCameraOk) {
         esp_camera_deinit();
         g_bCameraOk = false;
