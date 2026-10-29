@@ -11,6 +11,7 @@ int hp10_cam_cfg_framesize(bool psram);
 bool hp10_cam_cfg_saved(void);
 void hp10_cam_cfg_note_init(bool psram);
 bool hp10_cam_cfg_needs_reboot(void);
+bool hp10_cam_cfg_live_fs_ok(int fs);
 const char *hp10_cam_cfg_set(int framesize, int brightness, int contrast,
                              int saturation, int hmirror, int vflip);
 void hp10_cam_cfg_get(int *framesize, int *brightness, int *contrast,

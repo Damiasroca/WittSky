@@ -3,6 +3,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 
 #include "freertos/FreeRTOS.h"
@@ -14,6 +15,7 @@
 #include <string.h>
 
 #include "cam_cfg.h"
+#include "cam_exp.h"
 #include "hp10_bringup.h"
 #include "overlay.h"
 #include "pins.h"
@@ -35,8 +37,23 @@ static esp_err_t get_version(httpd_req_t *req)
     return send_json(req, o);
 }
 
+/* Five wrong passwords in a row lock the login for 30 s. */
+#define CAM_LOCK_TICKS  pdMS_TO_TICKS(15000)
+#define LOGIN_FAIL_MAX  5
+#define LOGIN_LOCK_US   (30LL * 1000000LL)
+
+static uint8_t s_login_fail;
+static int64_t s_login_lock_until;
+
 static esp_err_t set_login_info(httpd_req_t *req)
 {
+    if (esp_timer_get_time() < s_login_lock_until) {
+        free(recv_body(req));
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddStringToObject(o, "status", "0");
+        cJSON_AddStringToObject(o, "msg", "Too many attempts. Wait 30 seconds.");
+        return send_json(req, o);
+    }
     char *body = recv_body(req);
     cJSON *in = body ? cJSON_Parse(body) : NULL;
     free(body);
@@ -54,12 +71,20 @@ static esp_err_t set_login_info(httpd_req_t *req)
 
     cJSON *o = cJSON_CreateObject();
     if (!ok) {
-        g_bLoggedIn = false;
+        if (++s_login_fail >= LOGIN_FAIL_MAX) {
+            s_login_fail = 0;
+            s_login_lock_until = esp_timer_get_time() + LOGIN_LOCK_US;
+            ESP_LOGW(TAG, "login locked for 30 s");
+        }
         cJSON_AddStringToObject(o, "status", "0");
         cJSON_AddStringToObject(o, "msg", "Wrong password");
         return send_json(req, o);
     }
-    g_bLoggedIn = true;
+    s_login_fail = 0;
+    /* httpd keeps a pointer to the header value until the send below. */
+    char cookie[80];
+    www_session_new(cookie, sizeof cookie);
+    httpd_resp_set_hdr(req, "Set-Cookie", cookie);
     cJSON_AddStringToObject(o, "status", "1");
     cJSON_AddStringToObject(o, "online", "1");
     cJSON_AddStringToObject(o, "msg", "success");
@@ -171,6 +196,19 @@ static esp_err_t set_ws_settings(httpd_req_t *req)
     if (!in)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, NULL);
 
+    /* Validate into locals first. The upload task reads these globals, so a
+     * rejected request must not leave half of it applied. */
+    uint8_t ost = g_ost_interval;
+    bool up_en = g_upload_en;
+    bool eco_en = g_ecowitt_en;
+    char up_url[sizeof g_upload_url];
+    bool wsl_en = g_ws_log_en;
+    uint8_t wsl_lvl = g_ws_log_level;
+    char wsl_url[sizeof g_ws_log_url];
+    const char *bad = NULL;
+    strlcpy(up_url, g_upload_url, sizeof up_url);
+    strlcpy(wsl_url, g_ws_log_url, sizeof wsl_url);
+
     cJSON *it = cJSON_GetObjectItem(in, "ost_interval");
     if (it) {
         int v = json_num(it);
@@ -178,42 +216,32 @@ static esp_err_t set_ws_settings(httpd_req_t *req)
             v = 0;
         if (v > 5)
             v = 5;
-        g_ost_interval = (uint8_t)v;
+        ost = (uint8_t)v;
     }
     it = cJSON_GetObjectItem(in, "upload_en");
     if (it)
-        g_upload_en = json_num(it) != 0;
+        up_en = json_num(it) != 0;
     it = cJSON_GetObjectItem(in, "ecowitt_en");
     if (it)
-        g_ecowitt_en = json_num(it) != 0;
+        eco_en = json_num(it) != 0;
     it = cJSON_GetObjectItem(in, "upload_url");
     if (it && cJSON_IsString(it) && it->valuestring) {
-        if (!it->valuestring[0]) {
-            g_upload_url[0] = 0;
-        } else if (hp10_upload_url_ok(it->valuestring)) {
-            strlcpy(g_upload_url, it->valuestring, sizeof g_upload_url);
-        } else {
-            cJSON_Delete(in);
-            cJSON *o = cJSON_CreateObject();
-            cJSON_AddStringToObject(o, "status", "0");
-            cJSON_AddStringToObject(o, "msg", "URL must be http(s) and not ecowitt.net");
-            return send_json(req, o);
-        }
+        if (!it->valuestring[0])
+            up_url[0] = 0;
+        else if (hp10_upload_url_ok(it->valuestring))
+            strlcpy(up_url, it->valuestring, sizeof up_url);
+        else
+            bad = "URL must be http(s) and not ecowitt.net";
     }
-    if (g_upload_en && g_ecowitt_en) {
-        cJSON_Delete(in);
-        cJSON *o = cJSON_CreateObject();
-        cJSON_AddStringToObject(o, "status", "0");
-        cJSON_AddStringToObject(o, "msg", "Custom URL and Ecowitt upload cannot both be enabled");
-        return send_json(req, o);
-    }
-    if (g_upload_en && !hp10_upload_url_ok(g_upload_url))
-        g_upload_en = false;
+    if (!bad && up_en && eco_en)
+        bad = "Custom URL and Ecowitt upload cannot both be enabled";
+    if (up_en && !hp10_upload_url_ok(up_url))
+        up_en = false;
 
     bool log_changed = false;
     it = cJSON_GetObjectItem(in, "ws_log_en");
     if (it) {
-        g_ws_log_en = json_num(it) != 0;
+        wsl_en = json_num(it) != 0;
         log_changed = true;
     }
     it = cJSON_GetObjectItem(in, "ws_log_level");
@@ -221,46 +249,55 @@ static esp_err_t set_ws_settings(httpd_req_t *req)
         int v = json_num(it);
         if (v < 1)
             v = 1;
-        if (v > 5)
-            v = 5;
-        g_ws_log_level = (uint8_t)v;
+        if (v > CONFIG_LOG_MAXIMUM_LEVEL)
+            v = CONFIG_LOG_MAXIMUM_LEVEL;
+        wsl_lvl = (uint8_t)v;
         log_changed = true;
     }
     it = cJSON_GetObjectItem(in, "ws_log_url");
-    if (it && cJSON_IsString(it) && it->valuestring) {
-        if (!hp10_ws_log_url_ok(it->valuestring)) {
-            cJSON_Delete(in);
-            cJSON *o = cJSON_CreateObject();
-            cJSON_AddStringToObject(o, "status", "0");
-            cJSON_AddStringToObject(o, "msg", "WebSocket URL must be /path or ws(s)://host...");
-            return send_json(req, o);
-        }
-        strlcpy(g_ws_log_url, it->valuestring, sizeof g_ws_log_url);
+    if (!bad && it && cJSON_IsString(it) && it->valuestring) {
+        if (!hp10_ws_log_url_ok(it->valuestring))
+            bad = "WebSocket URL must be /path or ws(s)://host...";
+        strlcpy(wsl_url, it->valuestring, sizeof wsl_url);
         log_changed = true;
     }
 
     cJSON *lat_it = cJSON_GetObjectItem(in, "lat");
     cJSON *lon_it = cJSON_GetObjectItem(in, "lon");
     cJSON *tz_it = cJSON_GetObjectItem(in, "tz_iana");
-    if (tz_it && cJSON_IsString(tz_it) && tz_it->valuestring && tz_it->valuestring[0]) {
-        if (!hp10_tz_set(tz_it->valuestring)) {
-            cJSON_Delete(in);
-            cJSON *o = cJSON_CreateObject();
-            cJSON_AddStringToObject(o, "status", "0");
-            cJSON_AddStringToObject(o, "msg", "Unknown timezone");
-            return send_json(req, o);
-        }
+    const char *tz = NULL;
+    if (tz_it && cJSON_IsString(tz_it) && tz_it->valuestring && tz_it->valuestring[0])
+        tz = tz_it->valuestring;
+    if (!bad && tz && !hp10_tz_posix(tz))
+        bad = "Unknown timezone";
+    bool loc = lat_it && lon_it && !cJSON_IsNull(lat_it) && !cJSON_IsNull(lon_it);
+    double lat = loc ? json_dbl(lat_it) : 0;
+    double lon = loc ? json_dbl(lon_it) : 0;
+    if (!bad && loc && (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0)) {
+        cJSON_Delete(in);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad location");
     }
-    if (lat_it && lon_it && !cJSON_IsNull(lat_it) && !cJSON_IsNull(lon_it)) {
-        double lat = json_dbl(lat_it);
-        double lon = json_dbl(lon_it);
-        if (!hp10_location_set(lat, lon)) {
-            cJSON_Delete(in);
-            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad location");
-        }
+    if (bad) {
+        cJSON_Delete(in);
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddStringToObject(o, "status", "0");
+        cJSON_AddStringToObject(o, "msg", bad);
+        return send_json(req, o);
     }
 
+    if (tz)
+        hp10_tz_set(tz);
+    if (loc)
+        hp10_location_set(lat, lon);
     cJSON_Delete(in);
+
+    g_ost_interval = ost;
+    g_upload_en = up_en;
+    g_ecowitt_en = eco_en;
+    strlcpy(g_upload_url, up_url, sizeof g_upload_url);
+    g_ws_log_en = wsl_en;
+    g_ws_log_level = wsl_lvl;
+    strlcpy(g_ws_log_url, wsl_url, sizeof g_ws_log_url);
     hp10_cfg_save();
     if (log_changed)
         hp10_ws_log_apply();
@@ -388,17 +425,21 @@ static esp_err_t scan_ssid(httpd_req_t *req)
     }
 
     uint16_t n = 0;
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&n));
+    if (esp_wifi_scan_get_ap_num(&n) != ESP_OK)
+        n = 0;
     if (n > 16)
         n = 16;
     wifi_ap_record_t *aps = calloc(n ? n : 1, sizeof *aps);
+    if (aps && esp_wifi_scan_get_ap_records(&n, aps) != ESP_OK) {
+        free(aps);
+        aps = NULL;
+    }
     if (!aps) {
         cJSON *o = cJSON_CreateObject();
         cJSON_AddStringToObject(o, "status", "error");
         cJSON_AddStringToObject(o, "msg", "Sorry, there was an error scanning");
         return send_json(req, o);
     }
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&n, aps));
 
     cJSON *list = cJSON_CreateArray();
     for (uint16_t i = 0; i < n; i++) {
@@ -629,6 +670,8 @@ static esp_err_t upgrade_process(httpd_req_t *req)
     }
     if (strcmp(act, "start") == 0) {
         int rc = hp10_ota_start();
+        if (rc == -2)
+            return send_upgrade_err(req, hp10_ota_msg());
         if (rc < 0)
             return send_upgrade_err(req, "Get Firmware failed");
         if (rc == 0)
@@ -649,8 +692,8 @@ static esp_err_t upgrade_process(httpd_req_t *req)
 
 static esp_err_t upgrade_upload(httpd_req_t *req)
 {
-    if (!g_bLoggedIn)
-        return httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, NULL);
+    if (guest_json(req))
+        return ESP_OK;
     int n = req->content_len;
     if (n <= 0)
         return send_upgrade_err(req, "Bad firmware size");
@@ -663,10 +706,13 @@ static esp_err_t upgrade_upload(httpd_req_t *req)
         return send_upgrade_err(req, "No memory");
     }
     int left = n;
+    int stalls = 0;
     while (left > 0) {
         int want = left > 1024 ? 1024 : left;
         int r = httpd_req_recv(req, (char *)buf, want);
-        if (r == HTTPD_SOCK_ERR_TIMEOUT)
+        /* The HTTP watchdog is paused while OTA is busy. A client that
+         * vanished mid-upload must not hold port 80 forever. */
+        if (r == HTTPD_SOCK_ERR_TIMEOUT && ++stalls < 3)
             continue;
         if (r <= 0) {
             free(buf);
@@ -677,6 +723,7 @@ static esp_err_t upgrade_upload(httpd_req_t *req)
             free(buf);
             return send_upgrade_err(req, hp10_ota_msg());
         }
+        stalls = 0;
         left -= r;
     }
     free(buf);
@@ -702,6 +749,7 @@ static esp_err_t get_video_info(httpd_req_t *req)
             cJSON_AddNumberToObject(o, "h_mirror", hm);
             cJSON_AddNumberToObject(o, "v_flip", vf);
         }
+        hp10_cam_exp_add_json(o);
         return send_json(req, o);
     }
     cJSON_AddNumberToObject(o, "resolution", s->status.framesize);
@@ -732,6 +780,7 @@ static esp_err_t get_video_info(httpd_req_t *req)
     cJSON_AddNumberToObject(o, "scale", s->status.scale);
     cJSON_AddNumberToObject(o, "binning", s->status.binning);
     cJSON_AddNumberToObject(o, "denoise", s->status.denoise);
+    hp10_cam_exp_add_json(o);
     return send_json(req, o);
 }
 
@@ -746,34 +795,70 @@ static int apply_cam(cJSON *root, const char *key, sensor_t *s,
     return 1;
 }
 
+static bool json_has_exp_key(const cJSON *o)
+{
+    if (!o)
+        return false;
+    return cJSON_GetObjectItem(o, "aec_sensor") || cJSON_GetObjectItem(o, "agc") ||
+           cJSON_GetObjectItem(o, "exposure") || cJSON_GetObjectItem(o, "aec_dsp") ||
+           cJSON_GetObjectItem(o, "ae_level") || cJSON_GetObjectItem(o, "agc_gain") ||
+           cJSON_GetObjectItem(o, "gain_ceiling") || cJSON_GetObjectItem(o, "clkrc") ||
+           cJSON_GetObjectItem(o, "dummy_lines");
+}
+
 static esp_err_t set_video_info(httpd_req_t *req)
 {
+    if (guest_json(req))
+        return ESP_OK;
     char *body = recv_body(req);
     cJSON *o = body ? cJSON_Parse(body) : NULL;
     free(body);
     if (!o)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, NULL);
 
+    /* A bigger size than boot needs Save and reboot; set_video_cfg says so. */
+    cJSON *res = cJSON_GetObjectItem(o, "resolution");
+    if (res && !hp10_cam_cfg_live_fs_ok(json_num(res)))
+        cJSON_DeleteItemFromObject(o, "resolution");
+
+    if (json_has_exp_key(o)) {
+        hp10_cam_exp_t draft;
+        hp10_cam_exp_get(&draft);
+        hp10_cam_exp_patch_json(o, &draft);
+        const char *why = hp10_cam_exp_update(&draft);
+        if (why) {
+            cJSON_Delete(o);
+            ESP_LOGW("cam_exp", "live reject: %s", why);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, why);
+        }
+        if (g_bCameraOk)
+            hp10_cam_exp_apply_active_locked();
+    }
+
     sensor_t *s = g_bCameraOk ? esp_camera_sensor_get() : NULL;
+    if (s && g_cam_mu && xSemaphoreTake(g_cam_mu, CAM_LOCK_TICKS) != pdTRUE) {
+        cJSON_Delete(o);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "camera busy");
+    }
     if (s) {
         apply_cam(o, "resolution", s, (int (*)(sensor_t *, int))s->set_framesize);
         apply_cam(o, "quality", s, s->set_quality);
         apply_cam(o, "contrast", s, s->set_contrast);
         apply_cam(o, "brightness", s, s->set_brightness);
         apply_cam(o, "saturation", s, s->set_saturation);
-        apply_cam(o, "gain_ceiling", s, (int (*)(sensor_t *, int))s->set_gainceiling);
         apply_cam(o, "awb", s, s->set_whitebal);
-        apply_cam(o, "agc", s, s->set_gain_ctrl);
-        apply_cam(o, "aec_sensor", s, s->set_exposure_ctrl);
         apply_cam(o, "h_mirror", s, s->set_hmirror);
         apply_cam(o, "v_flip", s, s->set_vflip);
         apply_cam(o, "awb_gain", s, s->set_awb_gain);
-        apply_cam(o, "agc_gain", s, s->set_agc_gain);
-        apply_cam(o, "aec_dsp", s, s->set_aec2);
         apply_cam(o, "special_effect", s, s->set_special_effect);
         apply_cam(o, "wb_mode", s, s->set_wb_mode);
-        apply_cam(o, "ae_level", s, s->set_ae_level);
         apply_cam(o, "lens_correction", s, s->set_lenc);
+        if (cJSON_GetObjectItem(o, "resolution")) {
+            hp10_cam_exp_capture_defaults();
+            hp10_cam_exp_apply(hp10_cam_exp_active());
+        }
+        if (g_cam_mu)
+            xSemaphoreGive(g_cam_mu);
     }
     cJSON_Delete(o);
     return send_ok_text(req);
@@ -806,6 +891,8 @@ static esp_err_t reject_video(httpd_req_t *req, const char *msg)
 
 static esp_err_t set_video_cfg(httpd_req_t *req)
 {
+    if (guest_json(req))
+        return ESP_OK;
     char *body = recv_body(req);
     cJSON *in = body ? cJSON_Parse(body) : NULL;
     free(body);
@@ -813,17 +900,40 @@ static esp_err_t set_video_cfg(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, NULL);
 
     int fs, bri, con, sat, hm, vf;
+    int aec, exp, aec2, ael, agc, agc_g, gceil, clkrc, dummy;
     bool ok = json_int(in, "resolution", &fs) &&
               json_int(in, "brightness", &bri) &&
               json_int(in, "contrast", &con) &&
               json_int(in, "saturation", &sat) &&
               json_int(in, "h_mirror", &hm) &&
-              json_int(in, "v_flip", &vf);
+              json_int(in, "v_flip", &vf) &&
+              json_int(in, "aec_sensor", &aec) &&
+              json_int(in, "exposure", &exp) &&
+              json_int(in, "aec_dsp", &aec2) &&
+              json_int(in, "ae_level", &ael) &&
+              json_int(in, "agc", &agc) &&
+              json_int(in, "agc_gain", &agc_g) &&
+              json_int(in, "gain_ceiling", &gceil) &&
+              json_int(in, "clkrc", &clkrc) &&
+              json_int(in, "dummy_lines", &dummy);
     cJSON_Delete(in);
     if (!ok)
         return reject_video(req, "missing video setting");
 
     const char *why = hp10_cam_cfg_set(fs, bri, con, sat, hm, vf);
+    if (why)
+        return reject_video(req, why);
+    hp10_cam_exp_t ex;
+    ex.aec_on = (uint8_t)(aec ? 1 : 0);
+    ex.aec_value = (uint16_t)exp;
+    ex.aec2 = (uint8_t)(aec2 ? 1 : 0);
+    ex.ae_level = (int8_t)ael;
+    ex.agc_on = (uint8_t)(agc ? 1 : 0);
+    ex.agc_gain = (uint8_t)agc_g;
+    ex.gain_ceiling = (uint8_t)gceil;
+    ex.clkrc = (uint8_t)clkrc;
+    ex.dummy_lines = (uint16_t)dummy;
+    why = hp10_cam_exp_commit(&ex);
     if (why)
         return reject_video(req, why);
     if (g_bCameraOk)
@@ -851,7 +961,12 @@ static camera_fb_t *take_fb(void)
             return NULL;
         }
     }
-    xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    /* Bounded: port 80 has one worker. A holder that never returns the
+     * camera must not take the whole web UI down with it. */
+    if (xSemaphoreTake(g_cam_mu, CAM_LOCK_TICKS) != pdTRUE) {
+        ESP_LOGW("www", "camera busy");
+        return NULL;
+    }
     camera_fb_t *fb = esp_camera_fb_get();
     if (fb) {
         hp10_wd_note_camera_ok();
@@ -864,7 +979,8 @@ static camera_fb_t *take_fb(void)
             hp10_wd_note_camera_fail("camera_grab");
         return NULL;
     }
-    xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    if (xSemaphoreTake(g_cam_mu, CAM_LOCK_TICKS) != pdTRUE)
+        return NULL;
     fb = esp_camera_fb_get();
     if (!fb) {
         xSemaphoreGive(g_cam_mu);
@@ -873,6 +989,14 @@ static camera_fb_t *take_fb(void)
     }
     hp10_wd_note_camera_ok();
     return fb;
+}
+
+static volatile int     s_stream_n;
+static volatile int64_t s_capture_us;
+
+bool hp10_www_cam_busy(void)
+{
+    return s_stream_n > 0 || (esp_timer_get_time() - s_capture_us) < 10LL * 1000000LL;
 }
 
 static esp_err_t capture_get(httpd_req_t *req)
@@ -885,6 +1009,7 @@ static esp_err_t capture_get(httpd_req_t *req)
     size_t send_n;
     esp_err_t e;
 
+    s_capture_us = esp_timer_get_time();
     hp10_overlay_prepare(OV_DEST_STILL, &wx, &overlay);
     camera_fb_t *fb = take_fb();
     if (!fb)
@@ -893,6 +1018,10 @@ static esp_err_t capture_get(httpd_req_t *req)
     send_n = fb->len;
     if (overlay &&
         hp10_overlay_render(&wx, fb->buf, fb->len, &ov, &ov_n) == ESP_OK) {
+        /* The overlay is a copy. Free the camera before the network send. */
+        esp_camera_fb_return(fb);
+        xSemaphoreGive(g_cam_mu);
+        fb = NULL;
         send = ov;
         send_n = ov_n;
     }
@@ -901,8 +1030,10 @@ static esp_err_t capture_get(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     e = httpd_resp_send(req, (char *)send, send_n);
     free(ov);
-    esp_camera_fb_return(fb);
-    xSemaphoreGive(g_cam_mu);
+    if (fb) {
+        esp_camera_fb_return(fb);
+        xSemaphoreGive(g_cam_mu);
+    }
     return e;
 }
 
@@ -913,6 +1044,7 @@ static esp_err_t stream_get(httpd_req_t *req)
     httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=123456789000000000000987654321");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
+    s_stream_n++;
     for (;;) {
         camera_fb_t *fb = take_fb();
         if (!fb)
@@ -929,7 +1061,11 @@ static esp_err_t stream_get(httpd_req_t *req)
         }
         esp_camera_fb_return(fb);
         xSemaphoreGive(g_cam_mu);
+        /* Giving a mutex does not hand it over. Without a block here this
+         * loop retakes it at once and starves /capture, uploads and AWB. */
+        vTaskDelay(1);
     }
+    s_stream_n--;
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_FAIL;
 }

@@ -71,7 +71,14 @@ function removeError(_this) {
 
 function sidebar() {
   if (!document.querySelector("#sidebar")) return;
-  document.querySelector("#sidebar").innerHTML = `
+  let sb = document.querySelector("#sidebar");
+  sb.className = "sidebar";
+  sb.innerHTML = `
+        <div class="sidebar-brand">
+          <div class="sidebar-kicker">HP10</div>
+          <div class="sidebar-title">WittSky</div>
+        </div>
+        <nav class="sidebar-nav">
         <a class="sidebar-a" href="./status.html">Overview</a>
         <a class="sidebar-a" href="./video.html">Camera</a>
         <a class="sidebar-a" href="./skystats.html">Sky</a>
@@ -79,11 +86,12 @@ function sidebar() {
         <a class="sidebar-a" href="./capture.html">Uploads</a>
         <a class="sidebar-a" href="./localNetwork.html">Network</a>
         <a class="sidebar-a" href="./system.html">System</a>
+        </nav>
 			`;
   let here = (location.pathname.split("/").pop() || "").toLowerCase();
   document.querySelectorAll(".sidebar-a").forEach(function (a) {
     let href = (a.getAttribute("href") || "").replace("./", "").toLowerCase();
-    if (href && here === href) a.classList.add("sidebar-a-on");
+    if (href && here === href) a.classList.add("active", "sidebar-a-on");
   });
   if (localStorage.getItem("version")) {
     document
@@ -181,6 +189,19 @@ function paintWatchdog(res) {
   }
   setTile("#h-cap", reboots + " / " + (res.wd_cap_n || 0), tone);
   setSub("#h-cap-sub", sub);
+
+  if (!document.querySelector("#h-ota")) return;
+  if (res.ota_trial == 1) {
+    setTile("#h-ota", "On trial, boot " + res.ota_trial_boots + " / " + res.ota_trial_max, "warn");
+  } else {
+    setTile("#h-ota", "Armed", "ok");
+  }
+  let how = res.ota_rollback === "app+bootloader" ? "Firmware and bootloader"
+    : res.ota_rollback === "app" ? "Firmware" : "";
+  let parts = [];
+  if (res.ota_note) parts.push(res.ota_note);
+  if (how) parts.push(how + " rollback");
+  setSub("#h-ota-sub", parts.join(" · "));
 }
 
 function togglePwd(cb, id) {

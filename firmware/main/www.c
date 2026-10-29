@@ -5,6 +5,7 @@
 #include "cJSON.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "nvs.h"
 
@@ -14,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cam_auto.h"
 #include "hp10_bringup.h"
 #include "pins.h"
 #include "www.h"
@@ -33,20 +35,34 @@ static const char *TAG = "www";
 static httpd_handle_t  s_http;
 static volatile int64_t s_beat_us;
 static volatile bool    s_beat_posting;
+static TaskHandle_t     s_beat_task;
+
+static volatile bool    s_beat_seen;
 
 static void beat_work(void *arg)
 {
     (void)arg;
     s_beat_us = esp_timer_get_time();
+    s_beat_seen = true;
 }
 
-static void beat_post(void *arg)
+bool www_alive(void)
+{
+    return s_beat_seen && esp_timer_get_time() - s_beat_us < 45LL * 1000000LL;
+}
+
+/* One long-lived poster instead of a new task every 15 s. If the post
+ * ever blocks, only this task is stuck; s_beat_posting stays set and the
+ * watch task still sees the stamp go stale. */
+static void beat_post_task(void *arg)
 {
     (void)arg;
-    if (s_http)
-        httpd_queue_work(s_http, beat_work, NULL);
-    s_beat_posting = false;
-    vTaskDelete(NULL);
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (s_http)
+            httpd_queue_work(s_http, beat_work, NULL);
+        s_beat_posting = false;
+    }
 }
 
 static void http_watch_task(void *arg)
@@ -71,10 +87,9 @@ static void http_watch_task(void *arg)
             continue;
         }
         noted = false;
-        if (!s_beat_posting && s_http) {
+        if (!s_beat_posting && s_http && s_beat_task) {
             s_beat_posting = true;
-            if (xTaskCreate(beat_post, "http_beat", 3072, NULL, 3, NULL) != pdPASS)
-                s_beat_posting = false;
+            xTaskNotifyGive(s_beat_task);
         }
     }
 }
@@ -97,12 +112,6 @@ extern const uint8_t overlay_html_start[] asm("_binary_overlay_html_start");
 extern const uint8_t overlay_html_end[]   asm("_binary_overlay_html_end");
 extern const uint8_t axcss_css_start[]     asm("_binary_axcss_css_start");
 extern const uint8_t axcss_css_end[]       asm("_binary_axcss_css_end");
-extern const uint8_t dark_css_start[]      asm("_binary_dark_css_start");
-extern const uint8_t dark_css_end[]        asm("_binary_dark_css_end");
-extern const uint8_t warm_css_start[]      asm("_binary_warm_css_start");
-extern const uint8_t warm_css_end[]        asm("_binary_warm_css_end");
-extern const uint8_t technical_css_start[] asm("_binary_technical_css_start");
-extern const uint8_t technical_css_end[]   asm("_binary_technical_css_end");
 extern const uint8_t axjs_js_start[] asm("_binary_axjs_js_start");
 extern const uint8_t axjs_js_end[]   asm("_binary_axjs_js_end");
 extern const uint8_t camera_js_start[] asm("_binary_camera_js_start");
@@ -111,11 +120,49 @@ extern const uint8_t awb_js_start[] asm("_binary_awb_js_start");
 extern const uint8_t awb_js_end[]   asm("_binary_awb_js_end");
 extern const uint8_t skymask_js_start[] asm("_binary_skymask_js_start");
 extern const uint8_t skymask_js_end[]   asm("_binary_skymask_js_end");
+extern const uint8_t expauto_js_start[] asm("_binary_expauto_js_start");
+extern const uint8_t expauto_js_end[]   asm("_binary_expauto_js_end");
 
+
+/* Login sessions. Each browser gets its own random cookie, so one login no
+ * longer opens the UI to every client on the network. Only the port 80
+ * thread touches this table, so it needs no lock. Reboot logs everyone out. */
+#define SESS_N       4
+#define SESS_COOKIE  "hp10s"
+#define SESS_HEX     32
+
+static char    s_sess[SESS_N][SESS_HEX + 1];
+static uint8_t s_sess_next;
+
+bool www_session_ok(httpd_req_t *req)
+{
+    char val[SESS_HEX + 8];
+    size_t n = sizeof val;
+    if (httpd_req_get_cookie_val(req, SESS_COOKIE, val, &n) != ESP_OK)
+        return false;
+    if (strlen(val) != SESS_HEX)
+        return false;
+    for (int i = 0; i < SESS_N; i++) {
+        if (s_sess[i][0] && strcmp(s_sess[i], val) == 0)
+            return true;
+    }
+    return false;
+}
+
+void www_session_new(char *cookie, size_t n)
+{
+    uint8_t raw[SESS_HEX / 2];
+    char *tok = s_sess[s_sess_next];
+    esp_fill_random(raw, sizeof raw);
+    for (size_t i = 0; i < sizeof raw; i++)
+        snprintf(tok + 2 * i, 3, "%02x", raw[i]);
+    s_sess_next = (uint8_t)((s_sess_next + 1) % SESS_N);
+    snprintf(cookie, n, SESS_COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict", tok);
+}
 
 bool guest_json(httpd_req_t *req)
 {
-    if (g_bLoggedIn)
+    if (www_session_ok(req))
         return false;
     httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, NULL);
     return true;
@@ -123,7 +170,7 @@ bool guest_json(httpd_req_t *req)
 
 static bool guest_html(httpd_req_t *req)
 {
-    if (g_bLoggedIn)
+    if (www_session_ok(req))
         return false;
     httpd_resp_set_status(req, "302 Found");
     httpd_resp_set_hdr(req, "Location", "/login.html");
@@ -230,112 +277,9 @@ static esp_err_t overlay_html_get(httpd_req_t *req)
     return send_blob(req, "text/html", overlay_html_start, overlay_html_end);
 }
 
-/* One row per look. To add one: embed its CSS in CMakeLists.txt and append here.
- * An unknown or missing NVS id falls back to dark. */
-static const struct {
-    const char *id;
-    const char *label;
-    const uint8_t *start;
-    const uint8_t *end;
-} s_themes[] = {
-    { "dark",      "Dark",         dark_css_start,      dark_css_end },
-    { "warm",      "Station warm", warm_css_start,      warm_css_end },
-    { "technical", "Technical",    technical_css_start, technical_css_end },
-};
-
-static char s_theme_id[16] = "dark";
-
-static int theme_index(const char *id)
-{
-    if (!id || !id[0])
-        return -1;
-    for (size_t i = 0; i < sizeof s_themes / sizeof s_themes[0]; i++) {
-        if (strcmp(s_themes[i].id, id) == 0)
-            return (int)i;
-    }
-    return -1;
-}
-
-static void theme_load(void)
-{
-    nvs_handle_t h;
-    char buf[sizeof s_theme_id];
-    size_t n = sizeof buf;
-    if (nvs_open("hp10", NVS_READONLY, &h) != ESP_OK)
-        return;
-    if (nvs_get_str(h, "theme", buf, &n) == ESP_OK && theme_index(buf) >= 0)
-        strlcpy(s_theme_id, buf, sizeof s_theme_id);
-    nvs_close(h);
-}
-
-static void theme_save(void)
-{
-    nvs_handle_t h;
-    if (nvs_open("hp10", NVS_READWRITE, &h) != ESP_OK)
-        return;
-    nvs_set_str(h, "theme", s_theme_id);
-    nvs_commit(h);
-    nvs_close(h);
-}
-
-static int theme_active(void)
-{
-    int i = theme_index(s_theme_id);
-    if (i >= 0)
-        return i;
-    i = theme_index("dark");
-    return i >= 0 ? i : 0;
-}
-
 static esp_err_t axcss_get(httpd_req_t *req)
 {
     return send_blob(req, "text/css", axcss_css_start, axcss_css_end);
-}
-
-static esp_err_t active_theme_get(httpd_req_t *req)
-{
-    int i = theme_active();
-    return send_blob(req, "text/css", s_themes[i].start, s_themes[i].end);
-}
-
-static esp_err_t get_theme(httpd_req_t *req)
-{
-    if (guest_json(req))
-        return ESP_OK;
-    cJSON *o = cJSON_CreateObject();
-    cJSON *arr = cJSON_AddArrayToObject(o, "themes");
-    cJSON_AddStringToObject(o, "id", s_theme_id);
-    for (size_t i = 0; i < sizeof s_themes / sizeof s_themes[0]; i++) {
-        cJSON *t = cJSON_CreateObject();
-        cJSON_AddStringToObject(t, "id", s_themes[i].id);
-        cJSON_AddStringToObject(t, "label", s_themes[i].label);
-        cJSON_AddItemToArray(arr, t);
-    }
-    return send_json(req, o);
-}
-
-static esp_err_t set_theme(httpd_req_t *req)
-{
-    if (guest_json(req))
-        return ESP_OK;
-    char *body = recv_body(req);
-    cJSON *in = body ? cJSON_Parse(body) : NULL;
-    free(body);
-    cJSON *id = in ? cJSON_GetObjectItem(in, "id") : NULL;
-    int i = (id && cJSON_IsString(id)) ? theme_index(id->valuestring) : -1;
-    cJSON_Delete(in);
-    if (i < 0) {
-        cJSON *o = cJSON_CreateObject();
-        cJSON_AddStringToObject(o, "status", "0");
-        cJSON_AddStringToObject(o, "msg", "Unknown look");
-        return send_json(req, o);
-    }
-    strlcpy(s_theme_id, s_themes[i].id, sizeof s_theme_id);
-    theme_save();
-    cJSON *o = cJSON_CreateObject();
-    cJSON_AddStringToObject(o, "status", "1");
-    cJSON_AddStringToObject(o, "id", s_theme_id);
-    return send_json(req, o);
 }
 
 static esp_err_t js_get(httpd_req_t *req)
@@ -358,6 +302,11 @@ static esp_err_t skymask_js_get(httpd_req_t *req)
     return send_blob(req, "application/javascript", skymask_js_start, skymask_js_end);
 }
 
+static esp_err_t expauto_js_get(httpd_req_t *req)
+{
+    return send_blob(req, "application/javascript", expauto_js_start, expauto_js_end);
+}
+
 void register_get(httpd_handle_t h, const char *uri, esp_err_t (*fn)(httpd_req_t *))
 {
     httpd_uri_t u = { .uri = uri, .method = HTTP_GET, .handler = fn };
@@ -372,7 +321,6 @@ void register_post(httpd_handle_t h, const char *uri, esp_err_t (*fn)(httpd_req_
 
 void www_start(void)
 {
-    theme_load();
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.server_port = HP10_HTTP_PORT;
     cfg.max_uri_handlers = 64;
@@ -395,13 +343,11 @@ void www_start(void)
     register_get(http, "/skystats.html", skystats_html_get);
     register_get(http, "/overlay.html", overlay_html_get);
     register_get(http, "/axcss.css", axcss_get);
-    register_get(http, "/themes/active.css", active_theme_get);
-    register_get(http, "/get_theme", get_theme);
-    register_post(http, "/set_theme", set_theme);
     register_get(http, "/axjs.js", js_get);
     register_get(http, "/camera.js", camera_js_get);
     register_get(http, "/awb.js", awb_js_get);
     register_get(http, "/skymask.js", skymask_js_get);
+    register_get(http, "/expauto.js", expauto_js_get);
 
     httpd_config_t scfg = HTTPD_DEFAULT_CONFIG();
     scfg.server_port = HP10_STREAM_PORT;
@@ -415,7 +361,9 @@ void www_start(void)
     www_api_register(http, stream);
     www_sky_register(http);
     www_overlay_register(http);
+    hp10_cam_auto_register(http);
 
     ESP_LOGI(TAG, "httpd :%d  stream :%d", HP10_HTTP_PORT, HP10_STREAM_PORT);
+    xTaskCreate(beat_post_task, "http_beat", 3072, NULL, 3, &s_beat_task);
     xTaskCreate(http_watch_task, "http_wd", 3072, NULL, 3, NULL);
 }

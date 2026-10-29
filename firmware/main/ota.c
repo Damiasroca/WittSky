@@ -3,6 +3,7 @@
  */
 
 #include "cJSON.h"
+#include "esp_app_desc.h"
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
@@ -10,11 +11,13 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_system.h"
+#include "nvs.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,6 +70,11 @@ static void ota_unlock(void)
     if (s_mu)
         xSemaphoreGive(s_mu);
 }
+
+/* With two app slots, an update from an unconfirmed image would overwrite
+ * the healthy one that the trial falls back to. */
+static bool s_trial;
+#define TRIAL_BUSY_MSG "Wait until this firmware is confirmed (about 30 s after boot)"
 
 bool hp10_ota_url_ok(const char *url)
 {
@@ -389,6 +397,11 @@ int hp10_ota_start(void)
         ota_unlock();
         return 0;
     }
+    if (s_trial) {
+        snprintf(s_msg, sizeof s_msg, TRIAL_BUSY_MSG);
+        ota_unlock();
+        return -2;
+    }
     if (!s_has_update || !s_fw_url[0] || !hp10_sta_has_ip()) {
         ota_unlock();
         return -1;
@@ -423,6 +436,11 @@ esp_err_t hp10_ota_local_begin(size_t total)
     ota_lock();
     if (s_busy) {
         snprintf(s_msg, sizeof s_msg, "upgrade task is going on...");
+        ota_unlock();
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_trial) {
+        snprintf(s_msg, sizeof s_msg, TRIAL_BUSY_MSG);
         ota_unlock();
         return ESP_ERR_INVALID_STATE;
     }
@@ -533,4 +551,170 @@ void hp10_ota_local_abort(void)
         s_fail = true;
     s_busy = false;
     s_hdr_ok = false;
+}
+
+/* App-level rollback.
+ *
+ * HP10s installed through the OTA spoof keep Ecowitt's IDF 4.4 bootloader,
+ * which never rolls back, and rewriting a bootloader over the air can brick
+ * a classic ESP32. So the app checks itself. NVS remembers the slot that
+ * last proved healthy ("ota_ok"). Running any other slot is a trial. Each
+ * trial boot is counted, and after OTA_TRIAL_MAX boots without
+ * hp10_ota_trial_confirm() the healthy slot is selected again.
+ *
+ * No hook in the OTA paths is needed, so the first update into this
+ * version is covered too: with no "ota_ok" yet, the fallback is the other
+ * slot, but only if it holds a WittSky image (never the stock firmware).
+ * The bootloader still covers images that are corrupt or fail to load.
+ */
+#define OTA_TRIAL_MAX 3
+
+static uint8_t s_trial_boots;
+static uint8_t s_blrb; /* 0 unknown, 1 app only, 2 bootloader as well */
+static char    s_trial_note[128];
+
+static const esp_partition_t *app_at(uint32_t addr)
+{
+    const esp_partition_t *found = NULL;
+    esp_partition_iterator_t it =
+        esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    for (; it; it = esp_partition_next(it)) {
+        const esp_partition_t *p = esp_partition_get(it);
+        if (p->address == addr) {
+            found = p;
+            break;
+        }
+    }
+    esp_partition_iterator_release(it);
+    return found;
+}
+
+static bool wittsky_image(const esp_partition_t *p, esp_app_desc_t *out)
+{
+    const esp_app_desc_t *me = esp_app_get_description();
+    if (!p || esp_ota_get_partition_description(p, out) != ESP_OK)
+        return false;
+    return strncmp(out->project_name, me->project_name, sizeof out->project_name) == 0;
+}
+
+static void trial_note(nvs_handle_t h, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+
+static void trial_note(nvs_handle_t h, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(s_trial_note, sizeof s_trial_note, fmt, ap);
+    va_end(ap);
+    nvs_set_str(h, "ota_note", s_trial_note);
+    ESP_LOGW(TAG, "%s", s_trial_note);
+}
+
+void hp10_ota_trial_boot(void)
+{
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    const esp_partition_t *boot = esp_ota_get_boot_partition();
+    const esp_app_desc_t *me = esp_app_get_description();
+    esp_app_desc_t prev_desc;
+    nvs_handle_t h;
+    uint32_t ok_addr = 0;
+    bool have_ok;
+
+    if (!run || nvs_open("hp10", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    have_ok = nvs_get_u32(h, "ota_ok", &ok_addr) == ESP_OK;
+    nvs_get_u8(h, "ota_boots", &s_trial_boots);
+    nvs_get_u8(h, "ota_blrb", &s_blrb);
+    size_t n = sizeof s_trial_note;
+    if (nvs_get_str(h, "ota_note", s_trial_note, &n) != ESP_OK)
+        s_trial_note[0] = 0;
+
+    if (have_ok && run->address == ok_addr) {
+        /* The bootloader refused the selected update and fell back here.
+         * Point otadata back at this slot so it stops retrying every boot. */
+        if (boot && boot->address != run->address) {
+            if (wittsky_image(boot, &prev_desc))
+                trial_note(h, "Update to %s did not start. Kept %s.",
+                           prev_desc.version, me->version);
+            else
+                trial_note(h, "Update did not start. Kept %s.", me->version);
+            esp_ota_set_boot_partition(run);
+        }
+        if (s_trial_boots) {
+            s_trial_boots = 0;
+            nvs_set_u8(h, "ota_boots", 0);
+        }
+        nvs_commit(h);
+        nvs_close(h);
+        return;
+    }
+
+    if (s_trial_boots == 0) {
+        /* A bootloader built with rollback shows a fresh image as pending.
+         * Ecowitt's leaves it NEW or UNDEFINED. */
+        esp_ota_img_states_t st;
+        if (esp_ota_get_state_partition(run, &st) == ESP_OK)
+            s_blrb = st == ESP_OTA_IMG_PENDING_VERIFY ? 2 : 1;
+        else
+            s_blrb = 1;
+        nvs_set_u8(h, "ota_blrb", s_blrb);
+    }
+    if (s_trial_boots < 255)
+        s_trial_boots++;
+    nvs_set_u8(h, "ota_boots", s_trial_boots);
+    s_trial = true;
+    ESP_LOGW(TAG, "trial boot %u/%u of %s in %s", (unsigned)s_trial_boots,
+             (unsigned)OTA_TRIAL_MAX, me->version, run->label);
+
+    if (s_trial_boots > OTA_TRIAL_MAX) {
+        const esp_partition_t *prev = have_ok ? app_at(ok_addr)
+                                              : esp_ota_get_next_update_partition(run);
+        if (prev && prev->address != run->address &&
+            wittsky_image(prev, &prev_desc) &&
+            esp_ota_set_boot_partition(prev) == ESP_OK) {
+            trial_note(h, "%s failed to start %u times. Went back to %s.",
+                       me->version, (unsigned)OTA_TRIAL_MAX, prev_desc.version);
+            nvs_set_u8(h, "ota_boots", 0);
+            nvs_commit(h);
+            nvs_close(h);
+            esp_restart();
+        }
+        /* Nothing healthy to go back to. Stay here and keep counting. */
+        ESP_LOGE(TAG, "trial failed but no WittSky image to roll back to");
+    }
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+void hp10_ota_trial_confirm(void)
+{
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    esp_ota_img_states_t st;
+    nvs_handle_t h;
+
+    if (run && esp_ota_get_state_partition(run, &st) == ESP_OK &&
+        st == ESP_OTA_IMG_PENDING_VERIFY)
+        esp_ota_mark_app_valid_cancel_rollback();
+    if (!s_trial || !run || nvs_open("hp10", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    nvs_set_u32(h, "ota_ok", run->address);
+    nvs_set_u8(h, "ota_boots", 0);
+    trial_note(h, "Running %s, confirmed healthy.", esp_app_get_description()->version);
+    nvs_commit(h);
+    nvs_close(h);
+    s_trial = false;
+    s_trial_boots = 0;
+    ESP_LOGI(TAG, "%s confirmed in %s", esp_app_get_description()->version, run->label);
+}
+
+void hp10_ota_trial_add_json(cJSON *o)
+{
+    if (!o)
+        return;
+    cJSON_AddNumberToObject(o, "ota_trial", s_trial ? 1 : 0);
+    cJSON_AddNumberToObject(o, "ota_trial_boots", s_trial_boots);
+    cJSON_AddNumberToObject(o, "ota_trial_max", OTA_TRIAL_MAX);
+    cJSON_AddStringToObject(o, "ota_note", s_trial_note);
+    cJSON_AddStringToObject(o, "ota_rollback",
+                            s_blrb == 2 ? "app+bootloader" : s_blrb == 1 ? "app" : "");
 }

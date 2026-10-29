@@ -15,12 +15,13 @@ typedef struct {
     int on;
     int x, y, w, h;
     int text_x, text_y;
-    char text[32];
+    char text[48];
     const ov_font_t *font;
 } ov_label_t;
 
 struct ov_layout {
-    ov_label_t ts, wind, temp;
+    ov_label_t ts;
+    ov_label_t slot[OV_SLOT_N];
     int rain_on, rose_on, needle_on;
     int rain_x, rain_y, rain_w, rain_h;
     int rose_x, rose_y, rose_w, rose_h;
@@ -50,12 +51,29 @@ void ov_geom_defaults(ov_geom_t *g)
     g->an[OV_EL_TS] = OV_AN_TL;
     g->ox[OV_EL_TS] = 12;
     g->oy[OV_EL_TS] = 10;
-    g->an[OV_EL_WIND] = OV_AN_TR;
-    g->ox[OV_EL_WIND] = -12;
-    g->oy[OV_EL_WIND] = 10;
-    g->an[OV_EL_TEMP] = OV_AN_TR;
-    g->ox[OV_EL_TEMP] = -12;
-    g->oy[OV_EL_TEMP] = 56;
+    g->an[OV_EL_M0] = OV_AN_TR;
+    g->ox[OV_EL_M0] = -12;
+    g->oy[OV_EL_M0] = 10;
+    g->an[OV_EL_M1] = OV_AN_TR;
+    g->ox[OV_EL_M1] = -12;
+    g->oy[OV_EL_M1] = 56;
+    g->an[OV_EL_M2] = OV_AN_TR;
+    g->ox[OV_EL_M2] = -12;
+    g->oy[OV_EL_M2] = 148;
+    g->an[OV_EL_M3] = OV_AN_TR;
+    g->ox[OV_EL_M3] = -12;
+    g->oy[OV_EL_M3] = 194;
+    g->an[OV_EL_M4] = OV_AN_TR;
+    g->ox[OV_EL_M4] = -12;
+    g->oy[OV_EL_M4] = 240;
+    g->en[OV_EL_M2] = 0;
+    g->en[OV_EL_M3] = 0;
+    g->en[OV_EL_M4] = 0;
+    g->slot_meas[0] = OV_MEAS_WIND_SPEED;
+    g->slot_meas[1] = OV_MEAS_TEMP_OUT;
+    g->slot_meas[2] = OV_MEAS_HUM_OUT;
+    g->slot_meas[3] = OV_MEAS_PRESS_REL;
+    g->slot_meas[4] = OV_MEAS_RAIN_RATE;
     g->an[OV_EL_RAIN] = OV_AN_TR;
     g->ox[OV_EL_RAIN] = -12;
     g->oy[OV_EL_RAIN] = 102;
@@ -68,6 +86,8 @@ void ov_geom_defaults(ov_geom_t *g)
     g->oy[OV_EL_NEEDLE] = -192;
     g->wind_unit = 0;
     g->temp_unit = 0;
+    g->press_unit = 0;
+    g->rain_unit = 0;
 }
 
 static void anchor_xy(int an, int fw, int fh, int ox, int oy, int *x, int *y)
@@ -130,7 +150,6 @@ int ov_layout_build(ov_layout_t **out, const ov_geom_t *g, int fw, int fh,
 {
     ov_layout_t *L;
     const ov_font_t *font;
-    char wind[32], temp[24];
     int side, ax, ay;
 
     *out = NULL;
@@ -143,15 +162,16 @@ int ov_layout_build(ov_layout_t **out, const ov_geom_t *g, int fw, int fh,
     if (g->en[OV_EL_TS])
         place_label(&L->ts, g->an[OV_EL_TS], g->ox[OV_EL_TS], g->oy[OV_EL_TS],
                     fw, fh, font, timestamp);
-    if (wx && wx->ok && g->en[OV_EL_WIND]) {
-        ov_fmt_wind(wind, sizeof wind, wx->wind_mms, wx->dir_deg, g->wind_unit);
-        place_label(&L->wind, g->an[OV_EL_WIND], g->ox[OV_EL_WIND], g->oy[OV_EL_WIND],
-                    fw, fh, font, wind);
-    }
-    if (wx && wx->ok && g->en[OV_EL_TEMP]) {
-        ov_fmt_temp(temp, sizeof temp, wx->temp_mc, g->temp_unit);
-        place_label(&L->temp, g->an[OV_EL_TEMP], g->ox[OV_EL_TEMP], g->oy[OV_EL_TEMP],
-                    fw, fh, font, temp);
+    if (wx && wx->ok) {
+        for (int i = 0; i < OV_SLOT_N; i++) {
+            int el = OV_EL_M0 + i;
+            char text[48];
+            if (!g->en[el])
+                continue;
+            ov_fmt_measure(text, sizeof text, g->slot_meas[i], wx,
+                           g->wind_unit, g->temp_unit, g->press_unit, g->rain_unit);
+            place_label(&L->slot[i], g->an[el], g->ox[el], g->oy[el], fw, fh, font, text);
+        }
     }
     if (wx && wx->ok && wx->raining && g->en[OV_EL_RAIN]) {
         int rw = fh * 78 / 1200;
@@ -188,7 +208,9 @@ int ov_layout_build(ov_layout_t **out, const ov_geom_t *g, int fw, int fh,
         }
         L->rose_on = 1;
     }
-    if (wx && wx->ok && g->en[OV_EL_NEEDLE]) {
+    if (wx && wx->ok && g->en[OV_EL_NEEDLE] &&
+        (wx->has & OV_HAS(OV_MEAS_WIND_SPEED)) &&
+        (wx->has & OV_HAS(OV_MEAS_WIND_DIR))) {
         if (L->rose_on) {
             L->ncx = L->rose_x + side / 2;
             L->ncy = L->rose_y + side / 2;
@@ -224,9 +246,12 @@ void ov_layout_draw(const ov_layout_t *L, ov_band_t *band)
         ov_draw_needle(band, L->ncx, L->ncy, L->ndeg, L->nr, L->wind_mms);
     if (L->rain_on)
         ov_blit_rain(band, L->rain_x, L->rain_y, L->rain_w, L->rain_h);
-    const ov_label_t *labs[3] = { &L->ts, &L->wind, &L->temp };
-    for (int i = 0; i < 3; i++) {
-        const ov_label_t *lab = labs[i];
+    if (L->ts.on) {
+        ov_fill_rect(band, L->ts.x, L->ts.y, L->ts.w, L->ts.h, 0, 0, 0, 160);
+        ov_draw_text(band, L->ts.font, L->ts.text_x, L->ts.text_y, L->ts.text);
+    }
+    for (int i = 0; i < OV_SLOT_N; i++) {
+        const ov_label_t *lab = &L->slot[i];
         if (!lab->on)
             continue;
         ov_fill_rect(band, lab->x, lab->y, lab->w, lab->h, 0, 0, 0, 160);

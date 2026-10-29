@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "cam_cfg.h"
+#include "cam_exp.h"
 #include "hp10_bringup.h"
 #include "overlay_cfg.h"
 #include "sky_cfg.h"
@@ -45,6 +46,7 @@ static void exclusive_fixup(void)
 
 void hp10_cfg_load(void)
 {
+    hp10_cam_exp_init();
     nvs_handle_t h;
     if (nvs_open("hp10", NVS_READONLY, &h) != ESP_OK)
         return;
@@ -81,6 +83,7 @@ void hp10_cfg_load(void)
     nvs_get_u16(h, "wd_cap_m", &cap_m);
     hp10_sky_cfg_load(h);
     hp10_cam_cfg_load(h);
+    hp10_cam_exp_load(h);
     hp10_overlay_cfg_load(h);
     nvs_close(h);
     g_ap_auto = ap_auto != 0;
@@ -98,8 +101,8 @@ void hp10_cfg_load(void)
     g_ws_log_level = wslvl;
     if (g_ws_log_level < 1)
         g_ws_log_level = 1;
-    if (g_ws_log_level > 5)
-        g_ws_log_level = 5;
+    if (g_ws_log_level > CONFIG_LOG_MAXIMUM_LEVEL)
+        g_ws_log_level = CONFIG_LOG_MAXIMUM_LEVEL;
     if (!hp10_ws_log_url_ok(g_ws_log_url)) {
         g_ws_log_url[0] = 0;
         g_ws_log_en = false;
@@ -146,6 +149,7 @@ void hp10_cfg_save(void)
     nvs_set_u16(h, "wd_cap_m", g_wd_cap_m);
     hp10_sky_cfg_save(h);
     hp10_cam_cfg_save(h);
+    hp10_cam_exp_save(h);
     hp10_overlay_cfg_save(h);
     nvs_commit(h);
     nvs_close(h);

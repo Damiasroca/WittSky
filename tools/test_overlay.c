@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "overlay_eco_parse.h"
+#define OV_HOST 1
+
+#include "wx_eco.h"
 #include "overlay_units.h"
 
 static int g_fail;
@@ -53,6 +55,20 @@ static void test_units(void)
     ov_fmt_temp(buf, sizeof buf, 27200, 0);
     expect(strcmp(buf, "27.2\xC2\xBA" "C") == 0, buf);
 
+    expect(ov_press_to_pa(1013250, "hPa", &milli) == 0 && milli == 101325, "hPa");
+    expect(ov_rain_to_um(1200, "mm", &milli) == 0 && milli == 1200, "mm rain");
+    expect(ov_hum_to_pm(65400, "%", &milli) == 0 && milli == 654, "humidity");
+    {
+        ov_sample_t wx;
+        memset(&wx, 0, sizeof wx);
+        wx.has = OV_HAS(OV_MEAS_TEMP_OUT);
+        wx.temp_out_mc = 27200;
+        ov_fmt_measure(buf, sizeof buf, OV_MEAS_TEMP_OUT, &wx, 0, 0, 0, 0);
+        expect(strcmp(buf, "27.2\xC2\xBA" "C") == 0, buf);
+        ov_fmt_measure(buf, sizeof buf, OV_MEAS_HUM_OUT, &wx, 0, 0, 0, 0);
+        expect(strcmp(buf, "-") == 0, "missing hum");
+    }
+
     expect(ov_wind_to_mms(1000, "furlongs", &mms) != 0, "bad wind unit");
     expect(ov_parse_milli("nope", &milli, unit, sizeof unit) != 0, "bad number");
 }
@@ -62,7 +78,7 @@ static void test_parse(const char *json, int want, int32_t mms, int32_t mc,
 {
     ov_sample_t s;
     const char *why = NULL;
-    int rc = ov_eco_parse(json, &s, &why);
+    int rc = wx_eco_parse(json, &s, &why);
     if (want != 0) {
         expect(rc != 0, name);
         return;
@@ -72,9 +88,15 @@ static void test_parse(const char *json, int want, int32_t mms, int32_t mc,
         g_fail++;
         return;
     }
-    expect(s.wind_mms == mms, name);
-    expect(s.temp_mc == mc, name);
-    expect(s.dir_deg == dir, name);
+    if (mms >= 0)
+        expect(s.wind_mms == mms && (s.has & OV_HAS(OV_MEAS_WIND_SPEED)), name);
+    else
+        expect(!(s.has & OV_HAS(OV_MEAS_WIND_SPEED)), name);
+    expect(s.temp_out_mc == mc && (s.has & OV_HAS(OV_MEAS_TEMP_OUT)), name);
+    if (dir >= 0)
+        expect(s.dir_deg == dir && (s.has & OV_HAS(OV_MEAS_WIND_DIR)), name);
+    else
+        expect(!(s.has & OV_HAS(OV_MEAS_WIND_DIR)), name);
     expect(s.raining == rain, name);
     expect(s.ok, name);
 }
@@ -115,7 +137,7 @@ int main(void)
         "{\"common_list\":["
         "{\"id\":\"0x02\",\"val\":\"10\",\"unit\":\"C\"},"
         "{\"id\":\"0x0A\",\"val\":\"10\"}]}",
-        -1, 0, 0, 0, 0, "missing wind");
+        0, -1, 10000, 10, 0, "temp and direction");
     test_parse(
         "{\"code\":0,\"msg\":\"success\",\"data\":{"
         "\"outdoor\":{\"temperature\":{\"unit\":\"\xe2\x84\x83\",\"value\":\"27.0\"}},"

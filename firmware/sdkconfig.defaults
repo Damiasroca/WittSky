@@ -37,10 +37,10 @@ CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
 CONFIG_HTTPD_WS_SUPPORT=y
 CONFIG_LWIP_MAX_SOCKETS=20
 
-# Runtime Debug/Verbose for the websocket log level selector.
+# Runtime Debug for the websocket log level selector. Verbose strings
+# cost flash, so the selector stops at Debug.
 # CONFIG_LOG_MAXIMUM_EQUALS_DEFAULT is not set
-CONFIG_LOG_MAXIMUM_LEVEL_VERBOSE=y
-CONFIG_LOG_MAXIMUM_LEVEL=5
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
 
 # Local http:// OTA servers (no TLS). https:// still uses the CRT bundle.
 CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP=y
@@ -51,3 +51,10 @@ CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY=y
 # Stock SCCB_Init @ 400e6508 uses 200 kHz on I2C port 1.
 CONFIG_SCCB_HARDWARE_I2C_PORT1=y
 CONFIG_SCCB_CLK_FREQ=200000
+
+# -Os: the app slot was 96% full at -Og, and -Os is usually faster than -Og.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# A new OTA image boots as pending and is confirmed after 30 s (app_main).
+# Takes effect only after the bootloader itself is flashed over USB.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

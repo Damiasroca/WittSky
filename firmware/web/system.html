@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>System</title>
 	<link rel="stylesheet" href="./axcss.css">
-	<link rel="stylesheet" href="./themes/active.css">
 	<style>
 		#tz_filter { margin-bottom: 2px; }
 		#current-version { white-space: pre-wrap; }
@@ -50,21 +49,8 @@
 		<div class="content" id="content">
 			<header class="page-head">
 				<h1 class="page-til">System</h1>
-				<p class="page-sub">Look, location and clock, watchdog, live logs, firmware, security, and device power.</p>
+				<p class="page-sub">Location and clock, watchdog, live logs, firmware, security, and device power.</p>
 			</header>
-			<section class="content-box" data-tone="cam">
-				<h2 class="input-box-til">Appearance</h2>
-				<div class="fields">
-					<div class="field">
-						<label class="field-label" for="theme">Look</label>
-						<select id="theme"></select>
-						<div class="hint">Stored on the camera. Dark is used until you pick another.</div>
-					</div>
-				</div>
-				<div class="btn-box">
-					<button type="button" class="common-btn" onclick="setTheme()">Apply</button>
-				</div>
-			</section>
 			<section class="content-box">
 				<h2 class="input-box-til">Location &amp; time</h2>
 				<div class="tiles">
@@ -147,7 +133,6 @@
 							<option value="2">Warning</option>
 							<option value="3" selected>Info</option>
 							<option value="4">Debug</option>
-							<option value="5">Verbose</option>
 						</select>
 					</div>
 				</div>
@@ -430,11 +415,13 @@
 	function wsLogAppend(txt) {
 		let box = document.querySelector('#ws-log-box')
 		if (!box) return
+		// One message can carry several lines; trim by line, not by message.
+		let count = function (s) { return (s.match(/\n/g) || []).length || 1 }
 		box.appendChild(document.createTextNode(txt))
-		wsLogLines++
+		wsLogLines += count(txt)
 		while (wsLogLines > 400 && box.firstChild) {
+			wsLogLines -= count(box.firstChild.nodeValue || '')
 			box.removeChild(box.firstChild)
-			wsLogLines--
 		}
 		box.scrollTop = box.scrollHeight
 	}
@@ -688,41 +675,6 @@
 		})
 	}
 
-	function loadThemes() {
-		ajax({
-			url: '/get_theme',
-			success: function (res) {
-				let sel = document.querySelector('#theme')
-				if (!sel || !res || !res.themes) return
-				sel.innerHTML = ''
-				res.themes.forEach(function (t) {
-					let o = document.createElement('option')
-					o.value = t.id
-					o.textContent = t.label
-					if (t.id === res.id) o.selected = true
-					sel.appendChild(o)
-				})
-			}
-		})
-	}
-
-	function setTheme() {
-		ajax({
-			method: 'post',
-			url: '/set_theme',
-			data: { id: document.querySelector('#theme').value },
-			success: function (res) {
-				if (res && res.status == '0') {
-					toast({ txt: res.msg || 'Failed', type: 'error' })
-					return
-				}
-				location.reload()
-			},
-			error: function (err) { toast({ txt: err, type: 'error' }) }
-		})
-	}
-
-	loadThemes()
 	getDevice()
 	getWs(function (res) {
 		fillLocation(res)

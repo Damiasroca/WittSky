@@ -12,9 +12,9 @@
 #include "freertos/task.h"
 
 #include "cam_cfg.h"
+#include "cam_exp.h"
 #include "hp10_bringup.h"
 #include "pins.h"
-#include "sky_awb.h"
 
 static const char *TAG = "hp10";
 
@@ -140,8 +140,8 @@ esp_err_t camera_bringup(void)
     }
     g_bCameraOk = true;
     gpio_set_level(PIN_STATUS_LED, LED_ON_LEVEL);
+    /* Caller (hp10_camera_boot / hp10_camera_retry) holds g_cam_mu. */
     hp10_cam_cfg_apply();
-    hp10_sky_awb_apply();
     cam_settle_exposure();
     return ESP_OK;
 }
@@ -235,6 +235,7 @@ esp_err_t hp10_camera_retry(void)
     if (g_bCameraOk) {
         esp_camera_deinit();
         g_bCameraOk = false;
+        hp10_cam_exp_forget_defaults();
     }
     int n = g_wd_cam_n ? g_wd_cam_n : 1;
     if (n > 5)

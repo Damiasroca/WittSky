@@ -46,7 +46,9 @@ extern "C" esp_err_t ov_jpg_begin(int w, int h, uint8_t *dst, size_t cap)
     s_stream.cap = cap;
     s_stream.n = 0;
     s_stream.overflow = false;
-    p.m_quality = 100;
+    /* 100 made the output far larger than the camera's own JPEG for no
+     * visible gain. 90 roughly halves upload size and encode time. */
+    p.m_quality = 90;
     p.m_subsampling = jpge::H2V2;
     s_open = false;
     if (!s_enc.init(&s_stream, w, h, 3, p)) {

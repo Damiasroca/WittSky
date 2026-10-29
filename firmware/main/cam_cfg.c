@@ -5,9 +5,9 @@
 #include "freertos/semphr.h"
 
 #include "cam_cfg.h"
+#include "cam_exp.h"
 #include "hp10_bringup.h"
 #include "pins.h"
-#include "sky_awb.h"
 
 static const char *TAG = "cam";
 
@@ -70,6 +70,13 @@ bool hp10_cam_cfg_needs_reboot(void)
     return hp10_cam_cfg_framesize(s_init_psram) != s_init_fs;
 }
 
+bool hp10_cam_cfg_live_fs_ok(int fs)
+{
+    /* The JPEG buffer is sized for the boot resolution, and the OV2640
+     * driver indexes its resolution table with fs unchecked. */
+    return framesize_ok(fs) && s_init_fs >= 0 && fs <= s_init_fs;
+}
+
 const char *hp10_cam_cfg_set(int framesize, int brightness, int contrast,
                              int saturation, int hmirror, int vflip)
 {
@@ -127,37 +134,45 @@ static int set_level(sensor_t *s, int (*fn)(sensor_t *, int), int v, const char 
 
 void hp10_cam_cfg_apply(void)
 {
-    if (!s_saved || !g_bCameraOk)
+    sensor_t *s;
+    if (!g_bCameraOk)
         return;
-    sensor_t *s = esp_camera_sensor_get();
+    s = esp_camera_sensor_get();
     if (!s)
         return;
 
-    int fs = hp10_cam_cfg_framesize(s_init_psram);
-    if ((int)s->status.framesize != fs && s->set_framesize) {
-        if (s->set_framesize(s, (framesize_t)fs) != 0)
-            ESP_LOGW(TAG, "framesize %d failed", fs);
+    if (s_saved) {
+        int fs = hp10_cam_cfg_framesize(s_init_psram);
+        if ((int)s->status.framesize != fs && s->set_framesize) {
+            if (s->set_framesize(s, (framesize_t)fs) != 0)
+                ESP_LOGW(TAG, "framesize %d failed", fs);
+        }
+        /* Level 0 is already the sensor default. set_brightness(0) still rewrites
+         * the OV2640 SDE block and makes the image too bright. */
+        if (s_saturation)
+            set_level(s, s->set_saturation, s_saturation, "saturation");
+        if (s_contrast)
+            set_level(s, s->set_contrast, s_contrast, "contrast");
+        if (s_brightness)
+            set_level(s, s->set_brightness, s_brightness, "brightness");
+        set_level(s, s->set_hmirror, s_hmirror, "h_mirror");
+        set_level(s, s->set_vflip, s_vflip, "v_flip");
+        ESP_LOGI(TAG, "apply fs=%d bri=%d con=%d sat=%d hm=%d vf=%d",
+                 fs, s_brightness, s_contrast, s_saturation, s_hmirror, s_vflip);
     }
-    /* Level 0 is already the sensor default. set_brightness(0) still rewrites
-     * the OV2640 SDE block and makes the image too bright. */
-    if (s_saturation)
-        set_level(s, s->set_saturation, s_saturation, "saturation");
-    if (s_contrast)
-        set_level(s, s->set_contrast, s_contrast, "contrast");
-    if (s_brightness)
-        set_level(s, s->set_brightness, s_brightness, "brightness");
-    set_level(s, s->set_hmirror, s_hmirror, "h_mirror");
-    set_level(s, s->set_vflip, s_vflip, "v_flip");
-    ESP_LOGI(TAG, "apply fs=%d bri=%d con=%d sat=%d hm=%d vf=%d",
-             fs, s_brightness, s_contrast, s_saturation, s_hmirror, s_vflip);
-    hp10_sky_awb_apply();
+    /* set_framesize rewrites CLKRC, so read the sensor's own value again. */
+    hp10_cam_exp_capture_defaults();
+    hp10_cam_exp_apply(hp10_cam_exp_active());
 }
 
 void hp10_cam_cfg_apply_locked(void)
 {
-    if (g_cam_mu)
-        xSemaphoreTake(g_cam_mu, portMAX_DELAY);
+    if (g_cam_mu && xSemaphoreTake(g_cam_mu, pdMS_TO_TICKS(15000)) != pdTRUE) {
+        ESP_LOGW(TAG, "camera busy, settings not applied");
+        return;
+    }
     hp10_cam_cfg_apply();
+    hp10_cam_exp_post_apply(hp10_cam_exp_active());
     if (g_cam_mu)
         xSemaphoreGive(g_cam_mu);
 }

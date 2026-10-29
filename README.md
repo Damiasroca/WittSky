@@ -23,7 +23,7 @@ Recovery is possible in almost every case, but it requires **opening the camera 
 - **Scheduled uploads** to Ecowitt.net or to any HTTP/HTTPS endpoint you choose (5 / 10 / 15 / 20 / 25 min intervals).
 - **Weather overlay** on stills. Burns timestamp, wind, temperature, rain, and a compass rose into the JPEG from either a local Ecowitt gateway or the Ecowitt cloud API. The live stream stays clean.
 - **Ecowitt account integration.** Log in with your Ecowitt account and register the camera from the web UI; uploads then show up under your account like the stock camera did.
-- **Runtime themes.** Three looks — Dark, Station warm, Technical — switchable from the System page. Choice persists in NVS.
+- **One interface style.** A single stylesheet shared with the CAMERA_KERRY project.
 - **Time-zone-aware clock** with real sunrise / sunset from the saved location.
 - **Watchdog with reboot cap.** If the camera or uploads fail repeatedly it reboots itself, but stops after N reboots in an M-minute window so it doesn't boot-loop forever.
 - **OTA updates from the browser.** Either check a version-info URL (default: this repository's `ota.json`) or flash a `.bin` directly from your PC.
@@ -90,7 +90,7 @@ After WittSky is running:
 3. **Capture.** Set latitude, longitude, and your IANA time zone. Wait for the date field to show a real clock — sunrise and sunset will fill in.
 4. **Uploads.** Either register with Ecowitt.net and enable "Ecowitt.net", or set a "Custom URL" endpoint. Choose an interval.
 5. **Camera.** Frame the shot, save. Reboot if you changed the resolution.
-6. **System.** Set a login / AP password (this reboots the camera; the same password guards both the AP and login). Optionally pick a theme, adjust watchdog thresholds, enable the log stream.
+6. **System.** Set a login / AP password (this reboots the camera; the same password guards both the AP and login). Optionally adjust watchdog thresholds, enable the log stream.
 
 **Upload now** on the Status page is the fastest way to prove the upload path before waiting for the first scheduled capture.
 

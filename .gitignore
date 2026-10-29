@@ -1,6 +1,3 @@
-# Local backup of the old, more technical README kept for reference.
-README.old.md
-
 # Lab Wi-Fi config. Copy settings.env.example and edit that copy.
 OTA_SPOOF/settings.env
 OTA_SPOOF/__pycache__/
@@ -13,3 +10,9 @@ firmware/sdkconfig.old
 firmware/managed_components/
 firmware/dependencies.lock
 firmware/.cache/
+
+# Tools
+tools/*
+
+# Local snapshots taken before large firmware edits.
+backup/

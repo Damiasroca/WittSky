@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct cJSON;
+
 enum {
     OV_DEST_CUSTOM = 0,
     OV_DEST_ECO = 1,
@@ -34,3 +36,10 @@ esp_err_t hp10_overlay_render(const ov_sample_t *wx,
 
 /* Test hook. 0 off, 1 fail the weather fetch, 2 fail the output allocation. */
 void hp10_overlay_debug_fail(int which);
+
+/* Drop a cached station sample after the provider or credentials change. */
+void hp10_overlay_cache_clear(void);
+
+/* Last station fetch for /get_health. Probe hits the API and skips the cache. */
+void hp10_overlay_wx_add_json(struct cJSON *o);
+esp_err_t hp10_overlay_wx_probe(const char **why);

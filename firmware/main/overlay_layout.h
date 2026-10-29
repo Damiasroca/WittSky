@@ -7,11 +7,14 @@
 
 enum {
     OV_EL_TS = 0,
-    OV_EL_WIND,
-    OV_EL_TEMP,
-    OV_EL_RAIN,
+    OV_EL_M0,
+    OV_EL_M1,
+    OV_EL_M2,
+    OV_EL_M3,
+    OV_EL_M4,
     OV_EL_ROSE,
     OV_EL_NEEDLE,
+    OV_EL_RAIN,
     OV_EL_N
 };
 
@@ -31,14 +34,19 @@ enum {
  * For every element except the needle, the anchor point is that corner
  * or edge of the element's box. The needle's anchor point is its center.
  * Wind unit: 0 km/h, 1 m/s, 2 mph, 3 kn. Temperature unit: 0 C, 1 F.
+ * Pressure unit: 0 hPa, 1 inHg, 2 mmHg. Rain unit: 0 mm, 1 in.
+ * slot_meas[i] is the catalog id drawn in slot i (OV_EL_M0 + i).
  */
 typedef struct {
     uint8_t en[OV_EL_N];
     uint8_t an[OV_EL_N];
     int16_t ox[OV_EL_N];
     int16_t oy[OV_EL_N];
+    uint8_t slot_meas[OV_SLOT_N];
     uint8_t wind_unit;
     uint8_t temp_unit;
+    uint8_t press_unit;
+    uint8_t rain_unit;
 } ov_geom_t;
 
 typedef struct ov_layout ov_layout_t;

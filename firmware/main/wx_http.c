@@ -1,13 +1,10 @@
-#include "overlay_eco.h"
+#include "wx_http.h"
 
 #include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 
-#include "overlay_eco_parse.h"
-
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,8 +18,10 @@ static void *psram(size_t n)
     return p;
 }
 
-esp_err_t ov_eco_fetch_url(ov_sample_t *out, const char *url,
-                           int timeout_ms, const char **why)
+esp_err_t wx_fetch_url(const char *url, const char *hdr, const char *hdr_val,
+                       int timeout_ms,
+                       int (*parse)(const char *json, ov_sample_t *out, const char **why),
+                       ov_sample_t *out, const char **why, const char *who)
 {
     char *body = NULL;
     const char *parse_why = NULL;
@@ -30,21 +29,17 @@ esp_err_t ov_eco_fetch_url(ov_sample_t *out, const char *url,
     esp_err_t err = ESP_FAIL;
     int total = 0;
     int https;
-    const int cap = 16384;
 
     if (why)
         *why = "weather fetch failed";
-    if (!out)
-        return ESP_ERR_INVALID_ARG;
-    memset(out, 0, sizeof *out);
-    if (!url || !url[0]) {
+    if (!out || !parse || !url || !url[0]) {
         if (why)
             *why = "station address";
         return ESP_ERR_INVALID_ARG;
     }
+    memset(out, 0, sizeof *out);
     https = strncmp(url, "https://", 8) == 0;
-
-    body = psram(cap);
+    body = psram(WX_BODY_CAP);
     if (!body) {
         if (why)
             *why = "out of memory";
@@ -64,12 +59,15 @@ esp_err_t ov_eco_fetch_url(ov_sample_t *out, const char *url,
             *why = "http client";
         return ESP_FAIL;
     }
+    if (hdr && hdr[0] && hdr_val)
+        esp_http_client_set_header(cli, hdr, hdr_val);
     if (esp_http_client_open(cli, 0) != ESP_OK) {
         int tls_code = 0;
         int tls_flags = 0;
         esp_http_client_get_and_clear_last_tls_error(cli, &tls_code, &tls_flags);
         if (tls_code) {
-            ESP_LOGW(TAG, "ecowitt tls mbedtls=%d flags=0x%x", tls_code, tls_flags);
+            ESP_LOGW(TAG, "%s tls mbedtls=%d flags=0x%x", who ? who : "wx",
+                     tls_code, tls_flags);
             if (why)
                 *why = "tls handshake";
         } else if (why) {
@@ -78,13 +76,17 @@ esp_err_t ov_eco_fetch_url(ov_sample_t *out, const char *url,
         goto done;
     }
     esp_http_client_fetch_headers(cli);
-    if (esp_http_client_get_status_code(cli) != 200) {
-        if (why)
-            *why = "station http status";
-        goto done;
+    {
+        int sc = esp_http_client_get_status_code(cli);
+        if (sc != 200) {
+            ESP_LOGW(TAG, "%s http status %d", who ? who : "wx", sc);
+            if (why)
+                *why = "station http status";
+            goto done;
+        }
     }
-    while (total < cap - 1) {
-        int r = esp_http_client_read(cli, body + total, cap - 1 - total);
+    while (total < WX_BODY_CAP - 1) {
+        int r = esp_http_client_read(cli, body + total, WX_BODY_CAP - 1 - total);
         if (r < 0) {
             if (why)
                 *why = "station read";
@@ -94,24 +96,21 @@ esp_err_t ov_eco_fetch_url(ov_sample_t *out, const char *url,
             break;
         total += r;
     }
-    if (total >= cap - 1) {
+    if (!esp_http_client_is_complete_data_received(cli)) {
         if (why)
             *why = "station response too large";
         goto done;
     }
     body[total] = 0;
-    if (ov_eco_parse(body, out, &parse_why) != 0) {
+    if (parse(body, out, &parse_why) != 0) {
         if (why)
             *why = parse_why ? parse_why : "malformed";
-        ESP_LOGW(TAG, "ecowitt body: %.120s", body);
+        ESP_LOGW(TAG, "%s body: %.120s", who ? who : "wx", body);
         goto done;
     }
     err = ESP_OK;
     if (why)
         *why = NULL;
-    ESP_LOGI(TAG, "ecowitt wind %d mm/s dir %d temp %d mC rain %d",
-             (int)out->wind_mms, out->dir_deg, (int)out->temp_mc,
-             out->raining ? 1 : 0);
 
 done:
     if (cli) {
@@ -120,22 +119,4 @@ done:
     }
     free(body);
     return err;
-}
-
-esp_err_t ov_eco_fetch(ov_sample_t *out, const char *host, int port,
-                       int timeout_ms, const char **why)
-{
-    char url[160];
-
-    if (!host || !host[0] || port < 1 || port > 65535) {
-        if (why)
-            *why = "station address";
-        return ESP_ERR_INVALID_ARG;
-    }
-    if (snprintf(url, sizeof url, "http://%s:%d/get_livedata_info", host, port) >= (int)sizeof url) {
-        if (why)
-            *why = "station address";
-        return ESP_ERR_INVALID_ARG;
-    }
-    return ov_eco_fetch_url(out, url, timeout_ms, why);
 }

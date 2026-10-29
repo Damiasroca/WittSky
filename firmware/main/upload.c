@@ -54,6 +54,16 @@ static esp_err_t upload_now(void)
         hp10_overlay_render(&wx, fb->buf, fb->len, &ov, &ov_n) == ESP_OK) {
         send = ov;
         send_n = ov_n;
+    } else if ((ov = psram_malloc(fb->len)) != NULL) {
+        memcpy(ov, fb->buf, fb->len);
+        send = ov;
+        send_n = fb->len;
+    }
+    /* fb_count is 1. Hand the camera back before a POST that can take
+     * 30 s or more, unless the copy failed. */
+    if (ov) {
+        drop_frame(fb);
+        fb = NULL;
     }
 
     bool https = strncmp(g_upload_url, "https://", 8) == 0;
@@ -90,17 +100,23 @@ static esp_err_t upload_now(void)
         log_http_result("custom", g_upload_url, cli, err, &acc);
         int status = esp_http_client_get_status_code(cli);
         if (err == ESP_OK && (status < 200 || status > 299))
-            err = ESP_FAIL;
+            err = ESP_ERR_INVALID_RESPONSE;
         esp_http_client_cleanup(cli);
     }
     free(ov);
-    drop_frame(fb);
+    if (fb)
+        drop_frame(fb);
     ESP_LOGI(TAG, "custom done %s", esp_err_to_name(err));
     if (err == ESP_OK) {
         hp10_upload_result_set(true, "custom ok");
         hp10_wd_note_upload_ok();
     } else if (!hp10_sta_has_ip()) {
         hp10_upload_result_set(false, "no STA IP");
+    } else if (err == ESP_ERR_INVALID_RESPONSE) {
+        /* The server answered, so the network stack is fine. A reboot
+         * would not fix a server that is down or rejecting the image. */
+        hp10_upload_result_set(false, "custom server rejected upload");
+        hp10_wd_note_upload_ok();
     } else {
         char msg[64];
         snprintf(msg, sizeof msg, "custom %s", esp_err_to_name(err));
@@ -266,6 +282,8 @@ esp_err_t hp10_upload_run_now(uint32_t wait_ms)
         return ESP_ERR_INVALID_STATE;
     if (!s_now_sem)
         return ESP_ERR_INVALID_STATE;
+    /* A give that landed after an earlier timeout would end this wait at once. */
+    xSemaphoreTake(s_now_sem, 0);
     s_now_err = ESP_FAIL;
     s_now_req = true;
     if (xSemaphoreTake(s_now_sem, pdMS_TO_TICKS(wait_ms)) != pdTRUE) {

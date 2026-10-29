@@ -331,8 +331,8 @@ static void transports_rebuild(void)
     strlcpy(url, g_ws_log_url, sizeof url);
     if (level < ESP_LOG_ERROR)
         level = ESP_LOG_ERROR;
-    if (level > ESP_LOG_VERBOSE)
-        level = ESP_LOG_VERBOSE;
+    if (level > CONFIG_LOG_MAXIMUM_LEVEL)
+        level = CONFIG_LOG_MAXIMUM_LEVEL;
     if (!hp10_ws_log_url_ok(url))
         url[0] = 0;
 
@@ -426,12 +426,22 @@ static void log_task(void *arg)
         if (url_is_remote(g_ws_log_url))
             refresh_status(listen_path(g_ws_log_url), true, g_ws_log_url);
 
-        char line[LOG_LINE_MAX];
-        int n;
+        /* Pack whole lines into one frame. httpd_ws_send_data queues a work
+         * item and creates an event group per call, per client. */
+        static char batch[1024];
         int burst = 0;
-        while (burst++ < 32 && (n = ring_pop(line, sizeof line)) > 0) {
-            broadcast(line, n);
-            push_remote(line, n);
+        for (;;) {
+            int len = 0;
+            int n;
+            while (len <= (int)sizeof batch - LOG_LINE_MAX &&
+                   (n = ring_pop(batch + len, LOG_LINE_MAX)) > 0)
+                len += n;
+            if (len == 0)
+                break;
+            broadcast(batch, len);
+            push_remote(batch, len);
+            if (++burst >= 8)
+                break;
         }
     }
 }

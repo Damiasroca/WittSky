@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Camera</title>
 	<link rel="stylesheet" href="./axcss.css">
-	<link rel="stylesheet" href="./themes/active.css">
 	<style>
 		.img-wrap { padding: 16px 24px 8px; }
 		#stream {
@@ -107,6 +106,119 @@
 				</div>
 			</section>
 			<section class="content-box">
+				<h2 class="input-box-til">Exposure &amp; gain</h2>
+				<div class="fields">
+					<div class="field">
+						<span class="field-label">Auto exposure (AEC)</span>
+						<div class="switch">
+							<input id="aec_sensor" class="params-val" type="checkbox" checked="checked">
+							<label class="slider" for="aec_sensor"></label>
+						</div>
+					</div>
+					<div class="field exp-manual">
+						<label class="field-label" for="exposure">Manual exposure</label>
+						<div class="range"><span>0</span> <input type="range" id="exposure" class="params-val" min="0" max="1200" value="600"> <span class="range-val" id="exposure_val">600</span> <span id="exposure_max">1200</span></div>
+						<div class="hint">Line units (OV2640). The limit is the frame length, which grows with dummy lines.</div>
+					</div>
+					<div class="field exp-auto">
+						<span class="field-label">Night / extended AEC</span>
+						<div class="switch">
+							<input id="aec_dsp" class="params-val" type="checkbox">
+							<label class="slider" for="aec_dsp"></label>
+						</div>
+					</div>
+					<div class="field exp-auto">
+						<label class="field-label" for="ae_level">AE level</label>
+						<div class="range">-2 <input type="range" id="ae_level" class="params-val" min="-2" max="2" value="0"> 2</div>
+					</div>
+					<div class="field">
+						<span class="field-label">Auto gain (AGC)</span>
+						<div class="switch">
+							<input id="agc" class="params-val" type="checkbox" checked="checked">
+							<label class="slider" for="agc"></label>
+						</div>
+					</div>
+					<div class="field agc-manual">
+						<label class="field-label" for="agc_gain">Manual gain</label>
+						<div class="range">0 <input type="range" id="agc_gain" class="params-val" min="0" max="30" value="15"> <span class="range-val" id="agc_gain_val">15</span> 30</div>
+					</div>
+					<div class="field agc-auto">
+						<label class="field-label" for="gain_ceiling">Gain ceiling (AGC auto)</label>
+						<select id="gain_ceiling" class="params-val">
+							<option value="255">Auto (firmware default)</option>
+							<option value="0">2x</option>
+							<option value="1">4x</option>
+							<option value="2">8x</option>
+							<option value="3">16x</option>
+							<option value="4">32x</option>
+							<option value="5">64x</option>
+							<option value="6">128x</option>
+						</select>
+					</div>
+					<div class="field timing-only">
+						<label class="field-label" for="clkrc">Sensor clock (OV2640)</label>
+						<select id="clkrc" class="params-val">
+							<option value="255">Driver default</option>
+							<option value="1">&divide;2</option>
+							<option value="3">&divide;4</option>
+							<option value="7">&divide;8</option>
+							<option value="15">&divide;16</option>
+						</select>
+					</div>
+					<div class="field timing-only">
+						<label class="field-label" for="dummy_lines">Extra dummy lines (OV2640)</label>
+						<div class="range">0 <input type="range" id="dummy_lines" class="params-val" min="0" max="512" step="1" value="0"> <span class="range-val" id="dummy_lines_val">0</span> 512</div>
+						<div class="hint">Extends the frame so longer exposures fit. 0 leaves the sensor unchanged.</div>
+					</div>
+				</div>
+				<div class="hint" id="expEstHint">Estimated frame time: &mdash;</div>
+				<div class="hint">Long exposures slow stills and the stream. Settings that would need a frame slower than 3 s are refused.</div>
+			</section>
+			<section class="content-box">
+				<h2 class="input-box-til">Night / day switching</h2>
+				<div class="hint">Set the exposure and gain above the way you want them at night, then save them as the night preset. Day keeps the same values but turns auto exposure and auto gain back on.</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" id="saveNightBtn">Save current as night preset</button>
+					<button type="button" class="common-btn" id="applyNightBtn">Apply night</button>
+					<button type="button" class="common-btn" id="applyDayBtn">Apply day</button>
+				</div>
+				<div class="fields">
+					<div class="field">
+						<span class="field-label">Automatic switching</span>
+						<div class="switch">
+							<input id="autoEnabled" type="checkbox">
+							<label class="slider" for="autoEnabled"></label>
+						</div>
+					</div>
+					<div class="field">
+						<label class="field-label" for="autoLow">Night below (EV)</label>
+						<input type="number" id="autoLow" min="-20" max="20" step="0.5" value="-6">
+					</div>
+					<div class="field">
+						<label class="field-label" for="autoHigh">Day above (EV)</label>
+						<input type="number" id="autoHigh" min="-20" max="20" step="0.5" value="-4">
+					</div>
+					<div class="field">
+						<label class="field-label" for="autoInterval">Interval (min)</label>
+						<input type="number" id="autoInterval" min="1" max="60" step="1" value="2">
+					</div>
+					<div class="field">
+						<label class="field-label" for="autoSamples">Samples</label>
+						<input type="number" id="autoSamples" min="1" max="10" step="1" value="3">
+					</div>
+					<div class="field">
+						<label class="field-label" for="autoDwell">Minimum time between switches (min)</label>
+						<input type="number" id="autoDwell" min="0" max="240" step="1" value="15">
+					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" id="saveAutoBtn">Save switching settings</button>
+				</div>
+				<div class="hint" id="autoStatus">Mode: &mdash;</div>
+				<div class="hint">Watch the scene EV in the status line or the logs for a few days, then set the thresholds between the night and day values. Switching needs an OV2640.</div>
+				<div class="hint">Manual exposure changes are overridden at the next automatic switch.</div>
+			</section>
+			<section class="content-box">
 				<h2 class="input-box-til">White balance</h2>
 				<div class="fields">
 					<div class="field">
@@ -166,5 +278,6 @@
 </body>
 <script src="./axjs.js"></script>
 <script src="./camera.js"></script>
+	<script src="./expauto.js"></script>
 <script src="./awb.js"></script>
 </html>

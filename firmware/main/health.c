@@ -21,6 +21,7 @@
 #include <time.h>
 
 #include "hp10_bringup.h"
+#include "overlay.h"
 #include "pins.h"
 #include "sky_stats.h"
 
@@ -383,13 +384,24 @@ void hp10_health_add_json(cJSON *o)
     cJSON_AddStringToObject(o, "reboot_reason", reset_name(s_reset));
     cJSON_AddStringToObject(o, "prev_cause",
                             s_rtc.magic == RTC_MAGIC ? s_rtc.cause : "");
-    if (s_up_have) {
-        int64_t age = (esp_timer_get_time() - s_up_us) / 1000000;
+    bool up_have, up_ok;
+    int64_t up_us;
+    char up_msg[sizeof s_up_msg];
+    if (s_mu)
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+    up_have = s_up_have;
+    up_ok = s_up_ok;
+    up_us = s_up_us;
+    strlcpy(up_msg, s_up_msg, sizeof up_msg);
+    if (s_mu)
+        xSemaphoreGive(s_mu);
+    if (up_have) {
+        int64_t age = (esp_timer_get_time() - up_us) / 1000000;
         if (age < 0)
             age = 0;
         cJSON_AddNumberToObject(o, "last_upload_age_s", (double)age);
-        cJSON_AddNumberToObject(o, "last_upload_ok", s_up_ok ? 1 : 0);
-        cJSON_AddStringToObject(o, "last_upload_msg", s_up_msg);
+        cJSON_AddNumberToObject(o, "last_upload_ok", up_ok ? 1 : 0);
+        cJSON_AddStringToObject(o, "last_upload_msg", up_msg);
     } else {
         cJSON_AddNumberToObject(o, "last_upload_age_s", -1);
         cJSON_AddNumberToObject(o, "last_upload_ok", 0);
@@ -410,7 +422,9 @@ void hp10_health_add_json(cJSON *o)
              g_abStaMac[3], g_abStaMac[4], g_abStaMac[5]);
     cJSON_AddStringToObject(o, "sta_mac", mac);
     cJSON_AddStringToObject(o, "mdns_host", g_mdns_host);
+    hp10_overlay_wx_add_json(o);
     hp10_wifi_ap_add_json(o);
+    hp10_ota_trial_add_json(o);
     char sky[HP10_SKY_JSON_MAX];
     if (hp10_sky_latest(sky, sizeof sky))
         cJSON_AddRawToObject(o, "sky", sky);

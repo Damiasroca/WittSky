@@ -19,6 +19,25 @@ function netError(err) {
 		toast({ txt: 'There is an error in the network, please check.', type: 'error' })
 }
 
+function syncExpUi() {
+	let aec = document.getElementById('aec_sensor')
+	let agc = document.getElementById('agc')
+	let aecOn = aec && aec.checked
+	let agcOn = agc && agc.checked
+	document.querySelectorAll('.exp-manual').forEach(function (el) {
+		el.classList.toggle('hidden', aecOn)
+	})
+	document.querySelectorAll('.exp-auto').forEach(function (el) {
+		el.classList.toggle('hidden', !aecOn)
+	})
+	document.querySelectorAll('.agc-manual').forEach(function (el) {
+		el.classList.toggle('hidden', agcOn)
+	})
+	document.querySelectorAll('.agc-auto').forEach(function (el) {
+		el.classList.toggle('hidden', !agcOn)
+	})
+}
+
 function updateConfig(el) {
 	let data = {}
 	data[el.id] = String(readParam(el))
@@ -26,8 +45,21 @@ function updateConfig(el) {
 		method: 'post',
 		url: '/set_video_info',
 		data: data,
-		error: netError
+		error: function (err) {
+			netError(err)
+			if (err != 0 && err != 404) {
+				toast({ txt: 'The camera did not accept that setting', type: 'error' })
+				getData()
+			}
+		},
+		success: function () {
+			if (el.id === 'dummy_lines' || el.id === 'resolution' || el.id === 'clkrc' ||
+				el.id === 'aec_sensor')
+				getData()
+		}
 	})
+	if (el.id === 'aec_sensor' || el.id === 'agc')
+		syncExpUi()
 }
 
 function getData() {
@@ -37,6 +69,8 @@ function getData() {
 			document.querySelectorAll('.params-val').forEach(function (el) {
 				setParam(el, res[el.id])
 			})
+			syncExpUi()
+			if (window.applyExposureCaps) applyExposureCaps(res)
 		},
 		error: netError
 	})
@@ -47,10 +81,16 @@ function startStream() {
 }
 
 function saveVideo() {
-	let ids = ['resolution', 'brightness', 'contrast', 'saturation', 'h_mirror', 'v_flip']
+	let ids = [
+		'resolution', 'brightness', 'contrast', 'saturation', 'h_mirror', 'v_flip',
+		'aec_sensor', 'exposure', 'aec_dsp', 'ae_level', 'agc', 'agc_gain',
+		'gain_ceiling', 'clkrc', 'dummy_lines'
+	]
 	let params = {}
 	ids.forEach(function (id) {
 		let el = document.getElementById(id)
+		if (!el)
+			return
 		params[id] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : Number(el.value)
 	})
 	ajax({
@@ -77,3 +117,4 @@ document.querySelectorAll('.params-val').forEach(function (el) {
 
 getData()
 startStream()
+syncExpUi()

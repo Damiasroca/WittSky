@@ -859,8 +859,12 @@ static cJSON *run_job(int job)
 {
     s_job.job = job;
     s_job.out = NULL;
+    xSemaphoreTake(s_done, 0); /* drop a late give from a timed-out job */
     xTaskNotifyGive(s_task);
-    xSemaphoreTake(s_done, portMAX_DELAY);
+    /* Bounded: the caller is the single port 80 worker. A stalled cloud
+     * call must come back as an error, not freeze the web UI. */
+    if (xSemaphoreTake(s_done, pdMS_TO_TICKS(60000)) != pdTRUE)
+        return result("0", "Ecowitt cloud timed out");
     return s_job.out ? s_job.out : result("0", "Out of memory");
 }
 

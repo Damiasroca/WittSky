@@ -50,9 +50,14 @@ static int render(const char *path, int w, int h, int raining)
     memset(&wx, 0, sizeof wx);
     wx.ok = 1;
     wx.wind_mms = 6389;
-    wx.temp_mc = 27200;
+    wx.temp_out_mc = 27200;
     wx.dir_deg = 180;
     wx.raining = raining;
+    wx.rain_rate_umh = raining ? 1200 : 0;
+    wx.has = OV_HAS(OV_MEAS_WIND_SPEED) | OV_HAS(OV_MEAS_WIND_DIR) |
+             OV_HAS(OV_MEAS_TEMP_OUT);
+    if (raining)
+        wx.has |= OV_HAS(OV_MEAS_RAIN_RATE);
     rgb = malloc((size_t)w * (size_t)h * 3);
     if (!rgb)
         return -1;

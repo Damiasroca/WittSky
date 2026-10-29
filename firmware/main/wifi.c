@@ -36,6 +36,7 @@ static volatile bool      s_sta_joining;
 static volatile int        s_next_ms;
 static volatile TickType_t s_not_before;
 static volatile bool       s_sta_bounce;
+static volatile bool       s_mdns_due;
 static const char         *s_link = "idle";
 
 #define AP_LOG_N   12
@@ -109,7 +110,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         s_next_ms = 0;
         s_not_before = 0;
         s_link = "up";
-        hp10_mdns_apply();
+        /* mdns_init is too deep for the 2.3 KB event task once the log
+         * hook adds its line buffer. sta_link_task runs it. */
+        s_mdns_due = true;
+        sta_kick();
         return;
     }
     if (base == IP_EVENT && id == IP_EVENT_AP_STAIPASSIGNED && data) {
@@ -258,8 +262,15 @@ int hp10_wifi_sta_apply(const char *ssid, const char *pwd)
 
     xEventGroupClearBits(s_wifi_evt, EVT_GOT_IP | EVT_NO_AP | EVT_BAD_PWD | EVT_OTHER | EVT_STA_DOWN);
     s_sta_joining = true;
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &cfg));
-    esp_err_t err = esp_wifi_connect();
+    /* sta_link_task may have a rejoin in flight. set_config refuses with
+     * ESP_ERR_WIFI_STATE while the driver is connecting. */
+    esp_wifi_disconnect();
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "STA config: %s", esp_err_to_name(err));
+        return sta_apply_finish(4);
+    }
+    err = esp_wifi_connect();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_connect: %s", esp_err_to_name(err));
         return sta_apply_finish(4);
@@ -525,6 +536,10 @@ static void sta_link_task(void *arg)
     (void)arg;
     for (;;) {
         xEventGroupWaitBits(s_wifi_evt, EVT_LINK, pdTRUE, pdFALSE, pdMS_TO_TICKS(2000));
+        if (s_mdns_due) {
+            s_mdns_due = false;
+            hp10_mdns_apply();
+        }
         if (s_sta_joining)
             continue;
         if (!g_szStaSsid[0]) {

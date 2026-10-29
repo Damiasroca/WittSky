@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cam_exp.h"
 #include "hp10_bringup.h"
 #include "sky_awb.h"
 #include "sky_cfg.h"
@@ -163,12 +164,12 @@ static bool manual_wb(sensor_t *s, int r, int g, int b)
            s->set_reg(s, 0x0CE, 0xFF, b) == 0;
 }
 
+/* Put back the user's exposure, not plain auto: a manual AEC/AGC setup
+ * from the Camera page must survive a calibration. */
 static void unfreeze(sensor_t *s)
 {
-    if (s && s->set_exposure_ctrl && s->set_gain_ctrl) {
-        s->set_exposure_ctrl(s, 1);
-        s->set_gain_ctrl(s, 1);
-    }
+    (void)s;
+    hp10_cam_exp_apply(hp10_cam_exp_active());
 }
 
 static bool freeze_exposure(sensor_t *s)

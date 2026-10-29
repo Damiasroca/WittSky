@@ -16,7 +16,6 @@ extern "C" {
 #define HP10_OTA_CHECK_URL "https://raw.githubusercontent.com/Damiasroca/WittSky/main/ota.json"
 
 extern uint8_t      g_abStaMac[6];
-extern bool         g_bLoggedIn;
 extern bool         g_bCameraOk;
 extern char         g_szStaSsid[33];
 extern char         g_szStaPwd[65];
@@ -107,6 +106,12 @@ esp_err_t hp10_ota_local_write(const void *data, size_t n);
 esp_err_t hp10_ota_local_finish(void);
 void      hp10_ota_local_abort(void);
 void      hp10_ota_reboot_soon(void);
+
+/* App-level rollback (see ota.c). trial_boot runs right after NVS init;
+ * trial_confirm once the device has proven healthy. */
+void      hp10_ota_trial_boot(void);
+void      hp10_ota_trial_confirm(void);
+void      hp10_ota_trial_add_json(struct cJSON *o);
 
 void      hp10_systime_start(void);
 bool      hp10_sun_minutes(int *now_min, int *rise_min, int *set_min);

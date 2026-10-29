@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Overview</title>
 	<link rel="stylesheet" href="./axcss.css">
-	<link rel="stylesheet" href="./themes/active.css">
 </head>
 <body>
 	<div class="wrap">
@@ -13,7 +12,7 @@
 		<div class="content" id="content">
 			<header class="page-head">
 				<h1 class="page-til">Overview</h1>
-				<p class="page-sub">Live health of the radio, camera, memory, and uploads, plus the latest sky reading.</p>
+				<p class="page-sub">Live health of the radio, camera, memory, uploads, and weather station, plus the latest sky reading.</p>
 			</header>
 			<section class="content-box">
 				<h2 class="input-box-til">Health</h2>
@@ -46,6 +45,11 @@
 						<div class="tile-label">Last upload</div>
 						<div class="tile-value" id="h-upload">—</div>
 						<div class="tile-sub" id="h-upload-sub"></div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Station</div>
+						<div class="tile-value" id="h-wx">—</div>
+						<div class="tile-sub" id="h-wx-sub"></div>
 					</div>
 				</div>
 
@@ -89,6 +93,11 @@
 						<div class="tile-value" id="h-cap">—</div>
 						<div class="tile-sub" id="h-cap-sub"></div>
 					</div>
+					<div class="tile wide">
+						<div class="tile-label">Update rollback</div>
+						<div class="tile-value" id="h-ota">—</div>
+						<div class="tile-sub" id="h-ota-sub"></div>
+					</div>
 				</div>
 			</section>
 			<section class="content-box">
@@ -115,6 +124,7 @@
 				<div class="btn-box">
 					<button type="button" class="common-btn" onclick="postAction('/upload_now', 'Uploading')">Upload now</button>
 					<button type="button" class="common-btn" onclick="measureNow()">Measure now</button>
+					<button type="button" class="common-btn" onclick="checkStation()">Check station</button>
 				</div>
 			</section>
 		</div>
@@ -151,11 +161,34 @@
 		if (res.last_upload_age_s < 0) {
 			setTile('#h-upload', 'never')
 			setSub('#h-upload-sub', '')
+		} else {
+			let upOk = res.last_upload_ok == 1
+			setTile('#h-upload', fmtAge(res.last_upload_age_s), upOk ? 'ok' : 'err')
+			setSub('#h-upload-sub', (upOk ? 'ok' : 'fail') + (res.last_upload_msg ? ' — ' + res.last_upload_msg : ''))
+		}
+		paintWx(res)
+	}
+
+	function paintWx(res) {
+		if (!res.ov_prov) {
+			setTile('#h-wx', 'none')
+			setSub('#h-wx-sub', '')
 			return
 		}
-		let upOk = res.last_upload_ok == 1
-		setTile('#h-upload', fmtAge(res.last_upload_age_s), upOk ? 'ok' : 'err')
-		setSub('#h-upload-sub', (upOk ? 'ok' : 'fail') + (res.last_upload_msg ? ' — ' + res.last_upload_msg : ''))
+		let src = res.wx_src || 'Station'
+		if (res.last_wx_age_s == null || res.last_wx_age_s < 0) {
+			setTile('#h-wx', 'never')
+			setSub('#h-wx-sub', src)
+			return
+		}
+		let ok = res.last_wx_ok == 1
+		let sub = src
+		if (ok && res.last_wx_n)
+			sub += ' — ' + res.last_wx_n + (res.last_wx_n == 1 ? ' reading' : ' readings')
+		else if (!ok && res.last_wx_msg)
+			sub += ' — ' + res.last_wx_msg
+		setTile('#h-wx', fmtAge(res.last_wx_age_s), ok ? 'ok' : 'err')
+		setSub('#h-wx-sub', sub)
 	}
 
 	function paintDevice(res) {
@@ -238,6 +271,26 @@
 			error: function (err) {
 				loading.hide()
 				toast({ txt: err == 429 ? 'Busy, wait a few seconds' : 'Measure failed', type: 'error' })
+			}
+		})
+	}
+
+	function checkStation() {
+		loading.show('Checking station')
+		ajax({
+			url: '/get_overlay_wx',
+			data: { fresh: 1 },
+			success: function (res) {
+				loading.hide()
+				pollHealth()
+				if (res && res.status === 0)
+					toast({ txt: res.msg || 'Station check failed', type: 'error' })
+				else
+					toast({ txt: 'Station ok', type: 'success' })
+			},
+			error: function (err) {
+				loading.hide()
+				toast({ txt: err == 429 ? 'Busy, wait a few seconds' : 'Station check failed', type: 'error' })
 			}
 		})
 	}

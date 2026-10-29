@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Overlay</title>
 	<link rel="stylesheet" href="./axcss.css">
-	<link rel="stylesheet" href="./themes/active.css">
 	<style>
 		.ov-grid {
 			display: grid;
@@ -132,7 +131,7 @@
 		<div class="content" id="content">
 			<header class="page-head">
 				<h1 class="page-til">Overlay</h1>
-				<p class="page-sub">Burn the time and the station weather into stills and uploads. The live stream stays clean.</p>
+				<p class="page-sub">Burn the time and up to five station readings into stills and uploads. The live stream stays clean.</p>
 			</header>
 			<section class="content-box" data-tone="ok">
 				<h2 class="input-box-til">Weather</h2>
@@ -146,12 +145,62 @@
 						<label class="check"><input type="checkbox" id="ov_clean" /> Send that upload without the overlay</label>
 					</div>
 					<div class="field">
-						<label class="field-label" for="ov_sta">Station</label>
-						<select id="ov_sta">
+						<label class="field-label" for="ov_prov">Station</label>
+						<select id="ov_prov">
 							<option value="0">None</option>
-							<option value="1">Ecowitt gateway</option>
-							<option value="2">Ecowitt cloud</option>
+							<option value="1">Ecowitt</option>
+							<option value="2">WeatherLink</option>
+							<option value="3">Ambient Weather</option>
+							<option value="4">Tempest</option>
+							<option value="5">Weather Underground</option>
 						</select>
+					</div>
+					<div class="field" id="sub-field">
+						<label class="field-label" for="ov_sub">Connection</label>
+						<select id="ov_sub">
+							<option value="0">Local network</option>
+							<option value="1">Cloud</option>
+						</select>
+						<div class="hint" id="sub-hint"></div>
+					</div>
+					<div class="field" id="host-field">
+						<label class="field-label" for="ov_host">Gateway host</label>
+						<input type="text" id="ov_host" maxlength="63" placeholder="192.168.1.50" spellcheck="false" />
+					</div>
+					<div class="field" id="port-field">
+						<label class="field-label" for="ov_port">Port</label>
+						<input type="number" id="ov_port" min="1" max="65535" value="80" />
+					</div>
+					<div class="field" id="app-field">
+						<label class="field-label" for="ov_app_key">Application key</label>
+						<input type="text" id="ov_app_key" maxlength="63" spellcheck="false" autocomplete="off" />
+					</div>
+					<div class="field" id="api-field">
+						<label class="field-label" for="ov_api_key">API key</label>
+						<input type="text" id="ov_api_key" maxlength="63" spellcheck="false" autocomplete="off" />
+					</div>
+					<div class="field" id="secret-field">
+						<label class="field-label" for="ov_api_secret">API secret</label>
+						<input type="text" id="ov_api_secret" maxlength="63" spellcheck="false" autocomplete="off" />
+						<div class="hint">Sent as a header, not in the URL.</div>
+					</div>
+					<div class="field" id="token-field">
+						<label class="field-label" for="ov_token">Token</label>
+						<input type="text" id="ov_token" maxlength="127" spellcheck="false" autocomplete="off" />
+					</div>
+					<div class="field wide" id="station-field">
+						<label class="field-label" for="ov_station" id="station-label">Station ID</label>
+						<input type="text" id="ov_station" maxlength="47" spellcheck="false" autocomplete="off" />
+						<div class="hint" id="station-hint"></div>
+					</div>
+					<div class="field" id="to-field">
+						<label class="field-label" for="ov_timeout">Fetch timeout (ms)</label>
+						<input type="number" id="ov_timeout" min="500" max="20000" step="100" value="8000" />
+					</div>
+					<div class="field" id="cache-field">
+						<label class="field-label" for="ov_cache">Cache (s)</label>
+						<input type="number" id="ov_cache" min="10" max="300" step="1" value="30" />
+						<div class="hint">Reuse the last reading between stills so cloud rate limits are not hit on every frame.</div>
 					</div>
 					<div class="field">
 						<label class="field-label" for="ov_wunit">Wind</label>
@@ -169,36 +218,48 @@
 							<option value="1">°F</option>
 						</select>
 					</div>
-					<div class="field" id="to-field">
-						<label class="field-label" for="ov_timeout">Fetch timeout (ms)</label>
-						<input type="number" id="ov_timeout" min="500" max="20000" step="100" value="8000" />
+					<div class="field">
+						<label class="field-label" for="ov_punit">Pressure</label>
+						<select id="ov_punit">
+							<option value="0">hPa</option>
+							<option value="1">inHg</option>
+							<option value="2">mmHg</option>
+						</select>
 					</div>
-					<div class="field wide" id="url-field">
-						<label class="field-label" for="ov_url">Cloud URL</label>
-						<input type="text" id="ov_url" maxlength="383" spellcheck="false" />
-						<div class="hint">The real-time API address, including the application key, API key, and station MAC.</div>
+					<div class="field">
+						<label class="field-label" for="ov_runit">Rain</label>
+						<select id="ov_runit">
+							<option value="0">mm</option>
+							<option value="1">in</option>
+						</select>
 					</div>
-					<div class="field" id="host-field">
-						<label class="field-label" for="ov_host">Gateway host</label>
-						<input type="text" id="ov_host" maxlength="63" placeholder="192.168.1.50" />
+					<div class="field wide" id="url-hint" style="display:none">
+						<div class="hint">A saved Ecowitt cloud URL is still used until you apply. Applying stores the keys above and drops that URL.</div>
 					</div>
-					<div class="field" id="port-field">
-						<label class="field-label" for="ov_port">Port</label>
-						<input type="number" id="ov_port" min="1" max="65535" value="80" />
+					<div class="field wide">
+						<span class="field-label">Last fetch</span>
+						<div id="wx-health">—</div>
+						<div class="hint">Asks the station now. Stills and uploads also update this. Apply first if you just changed keys.</div>
 					</div>
+				</div>
+				<div class="btn-box">
+					<button type="button" class="common-btn" onclick="checkStation()">Check station</button>
 				</div>
 			</section>
 			<section class="content-box" data-tone="cam">
 				<h2 class="input-box-til">Placement</h2>
-				<p class="hint">Drag a block on the frame. It is a 4:3 still, the same shape as 1600×1200. X and Y are thousandths of the frame from the anchor. Negative X moves left, negative Y moves up. The direction arrow rides the compass degree ring and the sample points south. Its colour runs from blue at 0 km/h through green, yellow and orange to red at 70 km/h. With the compass hidden, that mark is the centre of the circle it travels. The rain mark is only burned in while the station reports rain.</p>
+				<p class="hint">Each reading card has a Measurement list. Turn Show on for the ones to burn in, up to five. Grayed measurements are not available from this station. Then drag a block on the frame. It is a 4:3 still, the same shape as 1600×1200. X and Y are thousandths of the frame from the anchor. Negative X moves left, negative Y moves up. A reading the station does not report is a dash. The direction arrow rides the compass degree ring and the sample points south. Its colour runs from blue at 0 km/h through green, yellow and orange to red at 70 km/h. With the compass hidden, that mark is the centre of the circle it travels. The rain mark is only burned in while the station reports rain.</p>
 				<div class="ov-place">
 					<div class="ov-stage" id="stage">
 						<div class="ov-chip ov-rose" data-id="rs" id="chip-rs">N</div>
 						<div class="ov-chip ov-needle" data-id="nd" id="chip-nd"><i></i></div>
 						<div class="ov-chip ov-rain" data-id="rn" id="chip-rn"></div>
 						<div class="ov-chip ov-lab" data-id="ts" id="chip-ts"></div>
-						<div class="ov-chip ov-lab" data-id="wd" id="chip-wd"></div>
-						<div class="ov-chip ov-lab" data-id="tp" id="chip-tp"></div>
+						<div class="ov-chip ov-lab" data-id="m0" id="chip-m0"></div>
+						<div class="ov-chip ov-lab" data-id="m1" id="chip-m1"></div>
+						<div class="ov-chip ov-lab" data-id="m2" id="chip-m2"></div>
+						<div class="ov-chip ov-lab" data-id="m3" id="chip-m3"></div>
+						<div class="ov-chip ov-lab" data-id="m4" id="chip-m4"></div>
 					</div>
 					<div class="ov-rows" id="elements"></div>
 				</div>
@@ -213,16 +274,30 @@
 <script>
 	var FW = 1600, FH = 1200
 	var ANCHORS = ['Top left', 'Top', 'Top right', 'Left', 'Right', 'Bottom left', 'Bottom', 'Bottom right']
-	var ELS = [
+	var MEAS = [
+		'Wind', 'Gust', 'Wind direction', 'Temperature', 'Indoor temperature',
+		'Humidity', 'Indoor humidity', 'Feels like', 'Dew point', 'Pressure',
+		'Absolute pressure', 'Rain rate', 'Hourly rain', 'Daily rain', 'Weekly rain',
+		'Monthly rain', 'UV index', 'Solar', 'Lightning distance', 'Lightning strikes',
+		'PM2.5', 'PM10', 'CO2', 'AQI', 'Soil moisture', 'Soil temperature', 'Leaf wetness'
+	]
+	var WL_LOCAL = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 24, 25, 26]
+	var TEMPEST = [0, 1, 2, 3, 5, 7, 10, 11, 12, 13, 16, 17, 18]
+	var WU = [0, 1, 2, 3, 5, 7, 8, 9, 11, 13, 16, 17]
+	var SLOTS = [
+		['m0', 'Reading 1', 2, -12, 10, 0],
+		['m1', 'Reading 2', 2, -12, 56, 3],
+		['m2', 'Reading 3', 2, -12, 148, 5],
+		['m3', 'Reading 4', 2, -12, 194, 9],
+		['m4', 'Reading 5', 2, -12, 240, 11]
+	]
+	var FIXED = [
 		['ts', 'Timestamp', 0, 12, 10],
-		['wd', 'Wind', 2, -12, 10],
-		['tp', 'Temperature', 2, -12, 56],
 		['rn', 'Rain', 2, -12, 102],
 		['rs', 'Compass', 5, 12, -12],
 		['nd', 'Arrow', 5, 147, -192]
 	]
-	var WIND = ['23.0 km/h S', '6.4 m/s S', '14.3 mph S', '12.4 kn S']
-	var TEMP = ['27.2°C', '81.0°F']
+	var LABELS = ['ts', 'm0', 'm1', 'm2', 'm3', 'm4']
 	var hot = 'ts'
 	var drag = null
 
@@ -234,10 +309,22 @@
 		return html + '</select>'
 	}
 
-	function elCard(el) {
+	function measSelect(id, value) {
+		var html = '<select class="meas" id="' + id + '">'
+		MEAS.forEach(function (name, i) {
+			html += '<option value="' + i + '"' + (i === value ? ' selected' : '') + '>' + name + '</option>'
+		})
+		return html + '</select>'
+	}
+
+	function elCard(el, meas) {
+		var measHtml = meas === undefined ? '' :
+			'<div class="field" style="grid-column:1 / -1"><label class="field-label" for="el_' + el[0] + '_meas">Measurement</label>' +
+			measSelect('el_' + el[0] + '_meas', meas) + '</div>'
 		return '<div class="ov-el" data-id="' + el[0] + '">' +
 			'<div class="ov-name"><span>' + el[1] + '</span>' +
 			'<label class="check"><input type="checkbox" id="el_' + el[0] + '_en" checked /> Show</label></div>' +
+			measHtml +
 			'<div class="field" style="grid-column:1 / -1"><label class="field-label" for="el_' + el[0] + '_an">Anchor</label>' +
 			anchorSelect('el_' + el[0] + '_an', el[2]) + '</div>' +
 			'<div class="field"><label class="field-label" for="el_' + el[0] + '_x">X</label>' +
@@ -248,10 +335,21 @@
 	}
 
 	function buildElements() {
-		var rows = [[ELS[0], ELS[1]], [ELS[2], ELS[3]], [ELS[4], ELS[5]]]
+		var rows = [
+			[FIXED[0], FIXED[1]],
+			[FIXED[2], FIXED[3]]
+		]
+		for (var i = 0; i < SLOTS.length; i += 2)
+			rows.push([SLOTS[i], SLOTS[i + 1]])
 		document.querySelector('#elements').innerHTML = rows.map(function (row) {
-			return '<div class="ov-row">' + row.map(elCard).join('') + '</div>'
+			return '<div class="ov-row">' + row.filter(Boolean).map(function (el) {
+				var slot = SLOTS.filter(function (s) { return s[0] === el[0] })[0]
+				return elCard(el, slot ? slot[5] : undefined)
+			}).join('') + '</div>'
 		}).join('')
+		document.querySelector('#el_m2_en').checked = false
+		document.querySelector('#el_m3_en').checked = false
+		document.querySelector('#el_m4_en').checked = false
 	}
 
 	function clamp(v) {
@@ -268,6 +366,11 @@
 			x: clamp(document.querySelector('#el_' + id + '_x').value),
 			y: clamp(document.querySelector('#el_' + id + '_y').value)
 		}
+	}
+
+	function readMeas(id) {
+		var el = document.querySelector('#el_' + id + '_meas')
+		return el ? Number(el.value) : 0
 	}
 
 	function anchorPoint(an, ox, oy) {
@@ -306,6 +409,61 @@
 		].join(',') + ')'
 	}
 
+	function sel(id) {
+		var el = document.querySelector(id)
+		return el ? Number(el.value) : 0
+	}
+
+	function sampleOf(meas) {
+		var w = ['23.0 km/h', '6.4 m/s', '14.3 mph', '12.4 kn'][sel('#ov_wunit')] || '23.0 km/h'
+		var g = ['30.0 km/h', '8.3 m/s', '18.6 mph', '16.2 kn'][sel('#ov_wunit')] || '30.0 km/h'
+		var t = ['27.2°C', '81.0°F'][sel('#ov_tunit')] || '27.2°C'
+		var p = ['1013.2 hPa', '29.92 inHg', '760.0 mmHg'][sel('#ov_punit')] || '1013.2 hPa'
+		var rain = ['1.2 mm', '0.05 in'][sel('#ov_runit')] || '1.2 mm'
+		var rate = ['1.2 mm/h', '0.05 in/h'][sel('#ov_runit')] || '1.2 mm/h'
+		var dist = sel('#ov_wunit') === 2 ? '5.2 mi' : '8.4 km'
+		var table = [
+			w, g, '176° S', t, '21.4°C', '55.0%', '42.0%', t, '14.1°C', p, p,
+			rate, rain, rain, rain, rain, '5.5', '640 W/m2', dist, '3',
+			'12.5 ug/m3', '18.0 ug/m3', '640 ppm', '42', '32.0%', t, '6.0%'
+		]
+		if (meas === 4 || meas === 7 || meas === 8 || meas === 25) {
+			table[4] = ['21.4°C', '70.5°F'][sel('#ov_tunit')] || table[4]
+			table[7] = t
+			table[8] = ['14.1°C', '57.4°F'][sel('#ov_tunit')] || table[8]
+			table[25] = ['18.0°C', '64.4°F'][sel('#ov_tunit')] || table[25]
+		}
+		return table[meas] || '-'
+	}
+
+	function supportList() {
+		var prov = sel('#ov_prov')
+		var sub = sel('#ov_sub')
+		var all = []
+		var i
+		for (i = 0; i < MEAS.length; i++) all.push(i)
+		if (prov === 1) return sub === 0 ? all.filter(function (n) { return n !== 12 }) : all
+		if (prov === 2) {
+			var m = WL_LOCAL.slice()
+			if (sub === 1) m.push(20, 21)
+			return m
+		}
+		if (prov === 3) return all.filter(function (n) { return n !== 12 })
+		if (prov === 4) return TEMPEST.slice()
+		if (prov === 5) return WU.slice()
+		return []
+	}
+
+	function paintMeas() {
+		var ok = {}
+		supportList().forEach(function (n) { ok[n] = 1 })
+		document.querySelectorAll('select.meas').forEach(function (select) {
+			Array.prototype.forEach.call(select.options, function (opt) {
+				opt.disabled = !ok[Number(opt.value)]
+			})
+		})
+	}
+
 	function place(id) {
 		var g = readEl(id)
 		var box, p
@@ -340,7 +498,7 @@
 		var stage = document.querySelector('#stage')
 		var sw = stage.clientWidth || 1
 		var sh = stage.clientHeight || 1
-		;['rs', 'nd', 'rn', 'ts', 'wd', 'tp'].forEach(function (id) {
+		;['rs', 'nd', 'rn', 'ts', 'm0', 'm1', 'm2', 'm3', 'm4'].forEach(function (id) {
 			var chip = document.querySelector('#chip-' + id)
 			var g = readEl(id)
 			chip.classList.toggle('is-off', !g.en)
@@ -357,10 +515,8 @@
 				chip.querySelector('i').style.background = windColor(23)
 				return
 			}
-			if (id === 'ts' || id === 'wd' || id === 'tp') {
-				chip.textContent = id === 'ts' ? '2026-09-28 15:04:12'
-					: id === 'wd' ? (WIND[Number(document.querySelector('#ov_wunit').value)] || WIND[0])
-					: (TEMP[Number(document.querySelector('#ov_tunit').value)] || TEMP[0])
+			if (LABELS.indexOf(id) >= 0) {
+				chip.textContent = id === 'ts' ? '2026-09-28 15:04:12' : sampleOf(readMeas(id))
 				var bw = chip.offsetWidth / sw * FW
 				var bh = chip.offsetHeight / sh * FH
 				var pos = pinBox(g.an, anchorPoint(g.an, g.x, g.y), bw, bh)
@@ -376,12 +532,53 @@
 		})
 	}
 
-	function showSta() {
-		var sta = document.querySelector('#ov_sta').value
-		document.querySelector('#host-field').style.display = sta === '1' ? '' : 'none'
-		document.querySelector('#port-field').style.display = sta === '1' ? '' : 'none'
-		document.querySelector('#url-field').style.display = sta === '2' ? '' : 'none'
-		document.querySelector('#to-field').style.display = sta === '0' ? 'none' : ''
+	function showField(id, on) {
+		document.querySelector(id).style.display = on ? '' : 'none'
+	}
+
+	function showProv() {
+		var prov = String(sel('#ov_prov'))
+		var subSel = document.querySelector('#ov_sub')
+		var canLan = prov === '1' || prov === '2'
+		subSel.querySelector('option[value="0"]').disabled = !canLan
+		if (!canLan && prov !== '0' && subSel.value === '0')
+			subSel.value = '1'
+		var sub = subSel.value
+		var local = canLan && sub === '0'
+		var ecoCloud = prov === '1' && sub === '1'
+		var wlCloud = prov === '2' && sub === '1'
+		var station = ecoCloud || wlCloud || prov === '4' || prov === '5'
+		showField('#sub-field', prov !== '0')
+		document.querySelector('#sub-hint').textContent = canLan || prov === '0' ? '' :
+			'No local API. Readings come from the cloud.'
+		showField('#host-field', local)
+		showField('#port-field', local)
+		showField('#app-field', ecoCloud || prov === '3')
+		showField('#api-field', ecoCloud || wlCloud || prov === '3' || prov === '5')
+		showField('#secret-field', wlCloud)
+		showField('#token-field', prov === '4')
+		showField('#station-field', station)
+		showField('#to-field', prov !== '0')
+		showField('#cache-field', prov !== '0')
+		var label = document.querySelector('#station-label')
+		var hint = document.querySelector('#station-hint')
+		if (ecoCloud) {
+			label.textContent = 'Station MAC'
+			hint.textContent = 'The gateway MAC, as AA:BB:CC:DD:EE:FF.'
+		} else if (wlCloud) {
+			label.textContent = 'Station ID'
+			hint.textContent = 'The WeatherLink station id, an integer or a UUID from the stations call.'
+		} else if (prov === '4') {
+			label.textContent = 'Station ID'
+			hint.textContent = 'The Tempest station id from the WeatherFlow app or API.'
+		} else if (prov === '5') {
+			label.textContent = 'PWS ID'
+			hint.textContent = 'The Weather Underground personal weather station id.'
+		} else {
+			label.textContent = 'Station ID'
+			hint.textContent = ''
+		}
+		paintMeas()
 	}
 
 	function getOverlay() {
@@ -389,15 +586,34 @@
 			url: '/get_overlay_cfg',
 			success: function (res) {
 				document.querySelector('#ov_en').checked = res.ov_en == 1
-				document.querySelector('#ov_sta').value = res.ov_sta
+				document.querySelector('#ov_prov').value = res.ov_prov
+				document.querySelector('#ov_sub').value = res.ov_sub
 				document.querySelector('#ov_host').value = res.ov_host || ''
-				document.querySelector('#ov_url').value = res.ov_url || ''
 				document.querySelector('#ov_port').value = res.ov_port
+				document.querySelector('#ov_app_key').value = res.ov_app_key || ''
+				document.querySelector('#ov_api_key').value = res.ov_api_key || ''
+				document.querySelector('#ov_api_secret').value = res.ov_api_secret || ''
+				document.querySelector('#ov_token').value = res.ov_token || ''
+				document.querySelector('#ov_station').value = res.ov_station || ''
 				document.querySelector('#ov_timeout').value = res.ov_timeout
+				document.querySelector('#ov_cache').value = Math.round((res.ov_cache_ms || 30000) / 1000)
 				document.querySelector('#ov_wunit').value = res.ov_wunit
 				document.querySelector('#ov_tunit').value = res.ov_tunit
+				document.querySelector('#ov_punit').value = res.ov_punit
+				document.querySelector('#ov_runit').value = res.ov_runit
 				document.querySelector('#ov_clean').checked = res.ov_clean == 1
-				;(res.el || []).forEach(function (e) {
+				document.querySelector('#url-hint').style.display = res.ov_url ? '' : 'none'
+				;(res.slots || []).forEach(function (e) {
+					var id = 'm' + e.id
+					var en = document.querySelector('#el_' + id + '_en')
+					if (!en) return
+					en.checked = e.en == 1
+					document.querySelector('#el_' + id + '_an').value = e.an
+					document.querySelector('#el_' + id + '_x').value = e.x
+					document.querySelector('#el_' + id + '_y').value = e.y
+					document.querySelector('#el_' + id + '_meas').value = e.meas
+				})
+				;(res.tsrose || []).forEach(function (e) {
 					var en = document.querySelector('#el_' + e.id + '_en')
 					if (!en) return
 					en.checked = e.en == 1
@@ -405,8 +621,9 @@
 					document.querySelector('#el_' + e.id + '_x').value = e.x
 					document.querySelector('#el_' + e.id + '_y').value = e.y
 				})
-				showSta()
+				showProv()
 				paint()
+				loadWxHealth()
 			},
 			error: function (err) {
 				if (err == 0 || err == 404)
@@ -415,18 +632,80 @@
 		})
 	}
 
+	function paintWxHealth(res) {
+		var el = document.querySelector('#wx-health')
+		if (!el || !res) return
+		if (!res.ov_prov) {
+			el.textContent = 'No station selected.'
+			return
+		}
+		var src = res.wx_src || 'Station'
+		if (res.last_wx_age_s == null || res.last_wx_age_s < 0) {
+			el.textContent = src + ': no fetch yet.'
+			return
+		}
+		var age = fmtAge(res.last_wx_age_s)
+		if (res.last_wx_ok == 1) {
+			var n = res.last_wx_n || 0
+			el.textContent = src + ' ok ' + age + ' — ' + n + (n == 1 ? ' reading' : ' readings') +
+				(res.last_wx_ms ? ' in ' + res.last_wx_ms + ' ms' : '')
+		} else {
+			el.textContent = src + ' failed ' + age + (res.last_wx_msg ? ' — ' + res.last_wx_msg : '')
+		}
+	}
+
+	function loadWxHealth() {
+		ajax({
+			url: '/get_overlay_wx',
+			success: paintWxHealth
+		})
+	}
+
+	function checkStation() {
+		var load = new Loading()
+		load.show('Checking station')
+		ajax({
+			url: '/get_overlay_wx',
+			data: { fresh: 1 },
+			success: function (res) {
+				load.hide()
+				paintWxHealth(res)
+				if (res && res.status == 0)
+					toast({ txt: res.msg || 'Station check failed', type: 'error' })
+				else
+					toast({ txt: 'Station ok', type: 'success' })
+			},
+			error: function (err) {
+				load.hide()
+				toast({ txt: err == 429 ? 'Busy, wait a few seconds' : 'Station check failed', type: 'error' })
+			}
+		})
+	}
+
 	function setOverlay() {
 		var data = {
 			ov_en: document.querySelector('#ov_en').checked ? 1 : 0,
-			ov_sta: Number(document.querySelector('#ov_sta').value),
+			ov_prov: sel('#ov_prov'),
+			ov_sub: sel('#ov_sub'),
 			ov_host: document.querySelector('#ov_host').value.trim(),
-			ov_url: document.querySelector('#ov_url').value.trim(),
 			ov_port: Number(document.querySelector('#ov_port').value),
+			ov_app_key: document.querySelector('#ov_app_key').value.trim(),
+			ov_api_key: document.querySelector('#ov_api_key').value.trim(),
+			ov_api_secret: document.querySelector('#ov_api_secret').value.trim(),
+			ov_token: document.querySelector('#ov_token').value.trim(),
+			ov_station: document.querySelector('#ov_station').value.trim(),
 			ov_timeout: Number(document.querySelector('#ov_timeout').value),
-			ov_wunit: Number(document.querySelector('#ov_wunit').value),
-			ov_tunit: Number(document.querySelector('#ov_tunit').value),
+			ov_cache_ms: Number(document.querySelector('#ov_cache').value) * 1000,
+			ov_wunit: sel('#ov_wunit'),
+			ov_tunit: sel('#ov_tunit'),
+			ov_punit: sel('#ov_punit'),
+			ov_runit: sel('#ov_runit'),
 			ov_clean: document.querySelector('#ov_clean').checked ? 1 : 0,
-			el: ELS.map(function (el) {
+			slots: SLOTS.map(function (el, i) {
+				var g = readEl(el[0])
+				return { id: i, en: g.en ? 1 : 0, an: g.an, x: g.x, y: g.y, meas: readMeas(el[0]) }
+			}),
+			tsrose: FIXED.map(function (el) {
 				var g = readEl(el[0])
 				return { id: el[0], en: g.en ? 1 : 0, an: g.an, x: g.x, y: g.y }
 			})
@@ -450,15 +729,17 @@
 	}
 
 	buildElements()
-	document.querySelector('#ov_sta').addEventListener('change', showSta)
+	document.querySelector('#ov_prov').addEventListener('change', function () { showProv(); paint() })
+	document.querySelector('#ov_sub').addEventListener('change', function () { showProv(); paint() })
 	document.querySelector('#elements').addEventListener('input', function (ev) {
 		var row = ev.target.closest('.ov-el')
 		if (row) hot = row.getAttribute('data-id')
 		paint()
 	})
 	document.querySelector('#elements').addEventListener('change', paint)
-	document.querySelector('#ov_wunit').addEventListener('change', paint)
-	document.querySelector('#ov_tunit').addEventListener('change', paint)
+	;['#ov_wunit', '#ov_tunit', '#ov_punit', '#ov_runit'].forEach(function (id) {
+		document.querySelector(id).addEventListener('change', paint)
+	})
 	document.querySelectorAll('.ov-chip').forEach(function (chip) {
 		chip.addEventListener('pointerdown', function (ev) {
 			if (ev.button !== 0) return
@@ -487,7 +768,7 @@
 		chip.addEventListener('pointerup', function () { drag = null })
 		chip.addEventListener('pointercancel', function () { drag = null })
 	})
-	showSta()
+	showProv()
 	paint()
 	getOverlay()
 </script>

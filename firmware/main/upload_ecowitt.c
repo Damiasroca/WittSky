@@ -96,9 +96,9 @@ static esp_err_t upload_ecowitt_url(const char *url, const char *body, int body_
     int code = acc.n ? eco_errcode(acc.buf) : -1;
     ESP_LOGI(TAG, "ecowitt errcode=%d", code);
     if (err == ESP_OK && (status < 200 || status > 299))
-        err = ESP_FAIL;
+        err = ESP_ERR_INVALID_RESPONSE;
     if (err == ESP_OK && code > 0)
-        err = ESP_FAIL;
+        err = ESP_ERR_INVALID_RESPONSE;
     esp_http_client_cleanup(cli);
     return err;
 }
@@ -242,6 +242,11 @@ esp_err_t upload_ecowitt(void)
         hp10_wd_note_upload_ok();
     } else if (!hp10_sta_has_ip()) {
         hp10_upload_result_set(false, "no STA IP");
+    } else if (err == ESP_ERR_INVALID_RESPONSE) {
+        /* Ecowitt answered with an error. The network is fine, so this
+         * does not count toward a watchdog reboot. */
+        hp10_upload_result_set(false, "ecowitt rejected upload");
+        hp10_wd_note_upload_ok();
     } else {
         char msg[64];
         snprintf(msg, sizeof msg, "ecowitt %s", esp_err_to_name(err));
