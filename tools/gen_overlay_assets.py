@@ -9,7 +9,7 @@ Needs Pillow. Reads tools/fonts/DejaVuSans-Bold.ttf, media/rainy.png, and media/
 Rewrites firmware/main/overlay_font.c, overlay_font.h, overlay_assets.c, and
 overlay_assets.h.
 
-Flash choice: one 512px rose (8-bit alpha, zlib) plus a tiny red-N sprite, one
+Flash choice: one 256px rose (8-bit alpha, zlib) plus a tiny red-N sprite, one
 96px rain icon, and three DejaVu sizes (14, 22, 32). The rose is scaled at draw
 time to frame_height * 480 / 1200. Glyphs are blitted at the nearest size, not
 scaled, so the text stays sharp. A full bitmap set for every OV2640 resolution
@@ -29,7 +29,7 @@ OUT_DIR = ROOT / "firmware" / "main"
 
 FONT_PX = (14, 22, 32)
 CHARS = list("0123456789.:-/ CEFNSWhkmnps") + ["°", "º"]
-ROSE_SIDE = 512
+ROSE_SIDE = 256
 RAIN_SIDE = 96
 
 

@@ -9,6 +9,18 @@
 
 #if !defined(OV_HOST)
 #include "esp_heap_caps.h"
+#include "esp_log.h"
+/* Says which layout step failed and how much memory was left, so a skipped
+ * overlay can be explained from the log alone. */
+static void ov_why(const char *what)
+{
+    ESP_LOGW("overlay", "layout failed: %s (psram free %u biggest %u, internal free %u)", what,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM),
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+}
+#else
+#define ov_why(what) ((void)0)
 #endif
 
 typedef struct {
@@ -156,8 +168,10 @@ int ov_layout_build(ov_layout_t **out, const ov_geom_t *g, int fw, int fh,
     if (!g || fw < 16 || fh < 16)
         return -1;
     L = calloc(1, sizeof *L);
-    if (!L)
+    if (!L) {
+        ov_why("layout struct alloc");
         return -1;
+    }
     font = ov_font_pick(fh);
     if (g->en[OV_EL_TS])
         place_label(&L->ts, g->an[OV_EL_TS], g->ox[OV_EL_TS], g->oy[OV_EL_TS],
@@ -192,7 +206,14 @@ int ov_layout_build(ov_layout_t **out, const ov_geom_t *g, int fw, int fh,
         L->rose_w = side;
         L->rose_h = side;
         L->rose_a = ov_alloc(ov_rose_asset.alpha_len);
-        if (!L->rose_a || ov_rose_inflate(L->rose_a, ov_rose_asset.alpha_len) != 0) {
+        if (!L->rose_a) {
+            ov_why("compass rose buffer alloc");
+            ov_layout_free(L);
+            return -1;
+        }
+        if (ov_rose_inflate(L->rose_a, ov_rose_asset.alpha_len) != 0 &&
+            ov_rose_inflate(L->rose_a, ov_rose_asset.alpha_len) != 0) {
+            ov_why("compass rose decompress");
             ov_layout_free(L);
             return -1;
         }
