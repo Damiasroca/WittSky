@@ -164,6 +164,8 @@ idf.py set-target esp32
 idf.py build
 ```
 
+`idf.py set-target esp32` regenerates `firmware/sdkconfig` from `sdkconfig.defaults`. An old `firmware/sdkconfig` overrides the defaults, so after pulling changes to `sdkconfig.defaults` (for example the Wi-Fi/lwIP-in-PSRAM setting that keeps internal RAM free) run it again or delete `firmware/sdkconfig`.
+
 Output is `firmware/build/hp10_bringup.bin` (renamed to `firmware/build/WittSky_<version>.bin` by a post-build step). The version string comes from `HP10_VERSION` in `firmware/main/version.h`.
 
 ---

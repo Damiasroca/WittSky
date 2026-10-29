@@ -58,3 +58,8 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 # A new OTA image boots as pending and is confirmed after 30 s (app_main).
 # Takes effect only after the bootloader itself is flashed over USB.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Internal RAM is the scarce resource: the heap low point was 23 bytes during
+# boot. Wi-Fi and lwIP buffers take internal RAM first and peak during large
+# sends (/capture, uploads). Let them use PSRAM and fall back to internal.
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y

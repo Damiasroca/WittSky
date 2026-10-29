@@ -36,6 +36,8 @@
 
 static const char *TAG = "overlay";
 
+#define OV_PSRAM_SLACK (512u * 1024u)
+
 static StaticSemaphore_t s_mu_buf;
 static SemaphoreHandle_t s_mu;
 static StaticSemaphore_t s_cache_mu_buf;
@@ -491,8 +493,11 @@ static esp_err_t render_locked(const ov_sample_t *wx, const uint8_t *jpeg, size_
         size_t pixels = (size_t)w * (size_t)h;
         size_t worst = pixels * 2;
         cap = pixels;
-        if (biggest > pixels + 65536)
-            cap = biggest - 65536;
+        /* Leave real headroom. The encoder needs about 77 KB of its own after this,
+         * and TLS, the HTTP clients and the Wi-Fi buffers all draw on PSRAM. With
+         * only 64 KB spare, a few KB elsewhere made the encoder fail to start. */
+        if (biggest > pixels + OV_PSRAM_SLACK)
+            cap = biggest - OV_PSRAM_SLACK;
         if (cap > worst)
             cap = worst;
         if (cap < pixels / 2) {
