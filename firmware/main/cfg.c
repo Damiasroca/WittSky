@@ -64,10 +64,19 @@ bool hp10_upload_url_ok(const char *url)
     return true;
 }
 
+uint32_t hp10_ost_minutes(uint8_t ost)
+{
+    return ost == HP10_OST_1MIN ? 1 : (uint32_t)ost * 5;
+}
+
 static void exclusive_fixup(void)
 {
     if (g_ecowitt_en && g_upload_en)
         g_upload_en = false;
+    if (g_ost_interval > HP10_OST_1MIN)
+        g_ost_interval = 1;
+    if (g_ecowitt_en && g_ost_interval == HP10_OST_1MIN)
+        g_ost_interval = 1;
 }
 
 void hp10_cfg_load(void)

@@ -214,8 +214,8 @@ static esp_err_t set_ws_settings(httpd_req_t *req)
         int v = json_num(it);
         if (v < 0)
             v = 0;
-        if (v > 5)
-            v = 5;
+        if (v > HP10_OST_1MIN)
+            v = HP10_OST_1MIN;
         ost = (uint8_t)v;
     }
     it = cJSON_GetObjectItem(in, "upload_en");
@@ -235,6 +235,8 @@ static esp_err_t set_ws_settings(httpd_req_t *req)
     }
     if (!bad && up_en && eco_en)
         bad = "Custom URL and Ecowitt upload cannot both be enabled";
+    if (!bad && eco_en && ost == HP10_OST_1MIN)
+        bad = "Ecowitt.net needs an interval of 5 minutes or more";
     if (up_en && !hp10_upload_url_ok(up_url))
         up_en = false;
 

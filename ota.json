@@ -1,8 +1,8 @@
 {
   "code": 0,
   "data": {
-    "version": "WittSky_1.0.4",
-    "content": "A Wi-Fi scan can no longer freeze the web UI, and a stalled page reboots the camera on its own.",
-    "attach1file": "https://raw.githubusercontent.com/Damiasroca/WittSky/main/WittSky_1.0.4.bin"
+    "version": "WittSky_1.0.6",
+    "content": "Custom URL uploads can run every minute (Ecowitt.net stays at 5 minutes or more), plus manual exposure with night/day switching and more internal-RAM headroom.",
+    "attach1file": "https://raw.githubusercontent.com/Damiasroca/WittSky/main/WittSky_1.0.6.bin"
   }
 }

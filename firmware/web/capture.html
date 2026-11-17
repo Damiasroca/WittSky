@@ -39,12 +39,14 @@
 						<label class="field-label" for="ost_interval">Interval (minutes)</label>
 						<select id="ost_interval">
 							<option value="0">off</option>
+							<option value="6" id="ost-1min">1</option>
 							<option value="1" selected>5</option>
 							<option value="2">10</option>
 							<option value="3">15</option>
 							<option value="4">20</option>
 							<option value="5">25</option>
 						</select>
+						<div class="hint" id="ost-hint" style="display:none">Ecowitt.net accepts 5 minutes or more. 1 minute is for a custom URL only.</div>
 					</div>
 					<div class="field wide" id="url-field">
 						<label class="field-label" for="upload_url">Upload URL</label>
@@ -107,6 +109,12 @@
 		let d = destValue()
 		document.querySelector('#url-field').style.display = d === 'custom' ? '' : 'none'
 		document.querySelector('#eco-card').style.display = d === 'eco' ? '' : 'none'
+		let eco = d === 'eco'
+		let sel = document.querySelector('#ost_interval')
+		document.querySelector('#ost-1min').disabled = eco
+		document.querySelector('#ost-hint').style.display = eco ? '' : 'none'
+		if (eco && sel.value === '6')
+			sel.value = '1'
 	}
 
 	function paintUploadStatus(msg) {
@@ -238,7 +246,9 @@
 		document.querySelector('#eco-login').style.display = (!checking && !loggedIn) ? '' : 'none'
 		document.querySelector('#eco-register-box').style.display = (loggedIn && !registered && !failed) ? '' : 'none'
 		document.querySelector('#eco-logout-box').style.display = loggedIn ? '' : 'none'
-		document.querySelector('#eco-msg').textContent = ecoMessages(res, checking)
+		let msgBox = document.querySelector('#eco-msg')
+		msgBox.textContent = ecoMessages(res, checking)
+		msgBox.style.display = msgBox.textContent ? '' : 'none'
 		ecoTiles(res, checking, failed, loggedIn, registered)
 		ecoDevices(res)
 	}

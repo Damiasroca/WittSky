@@ -166,7 +166,7 @@ esp_err_t upload_ecowitt(void)
 
     s_reupload++;
     ESP_LOGI(TAG, "ecowitt mac=%s PASSKEY=%s dateutc='%s' interval=%u reupload=%u jpeg_md5=%s",
-             mac, passkey, dateutc, (unsigned)g_ost_interval * 5,
+             mac, passkey, dateutc, (unsigned)hp10_ost_minutes(g_ost_interval),
              (unsigned)s_reupload, jpeg_md5);
 
     size_t cap = jpg_n + 2048;
@@ -189,7 +189,7 @@ esp_err_t upload_ecowitt(void)
     bad |= append_part(pkt, cap, &n, "battery", "0");
     snprintf(tmp, sizeof tmp, "%u", (unsigned)s_reupload);
     bad |= append_part(pkt, cap, &n, "reupload", tmp);
-    snprintf(tmp, sizeof tmp, "%u", (unsigned)g_ost_interval * 5);
+    snprintf(tmp, sizeof tmp, "%u", (unsigned)hp10_ost_minutes(g_ost_interval));
     bad |= append_part(pkt, cap, &n, "interval", tmp);
     bad |= append_part(pkt, cap, &n, "md5", jpeg_md5);
     if (bad) {

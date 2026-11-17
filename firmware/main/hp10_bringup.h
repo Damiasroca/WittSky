@@ -25,7 +25,10 @@ extern void        *g_cam_mu;
 extern bool    g_upload_en;
 extern bool    g_ecowitt_en; /* stock rtpmedia POST; exclusive with g_upload_en */
 extern char    g_upload_url[HP10_UPLOAD_URL_MAX];
-extern uint8_t g_ost_interval; /* UI value: 0=off, 1=5 min, … */
+extern uint8_t g_ost_interval; /* UI value: 0=off, 1=5 min, … 5=25 min, 6=1 min */
+/* 1 min is for the custom URL only; Ecowitt.net keeps the stock 5 min floor. */
+#define HP10_OST_1MIN 6
+uint32_t hp10_ost_minutes(uint8_t ost);
 extern char    g_ota_url[HP10_UPLOAD_URL_MAX];
 
 extern bool    g_ws_log_en;

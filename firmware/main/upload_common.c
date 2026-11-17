@@ -57,7 +57,7 @@ void log_cfg(const char *when)
     hp10_url_redact(safe, sizeof safe, g_upload_url);
     ESP_LOGI(TAG, "%s dest=%s eco=%d custom=%d ost=%u (%u min) url='%s' cam=%d sta=%d",
              when, dest_name(), g_ecowitt_en ? 1 : 0, g_upload_en ? 1 : 0,
-             g_ost_interval, (unsigned)g_ost_interval * 5,
+             g_ost_interval, (unsigned)hp10_ost_minutes(g_ost_interval),
              safe,
              g_bCameraOk ? 1 : 0, hp10_sta_has_ip() ? 1 : 0);
 }

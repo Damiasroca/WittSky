@@ -20,15 +20,17 @@ Recovery is possible in almost every case, but it requires **opening the camera 
 
 - **Runs entirely on the camera.** No cloud account is required. The full web UI (login, live stream, capture, network, upload settings, overlay, system, sky) is served from the ESP32 on port 80.
 - **Live MJPEG stream** on port 81 and single-shot `/capture` on port 80.
-- **Scheduled uploads** to Ecowitt.net or to any HTTP/HTTPS endpoint you choose (5 / 10 / 15 / 20 / 25 min intervals).
-- **Weather overlay** on stills. Burns timestamp, wind, temperature, rain, and a compass rose into the JPEG from either a local Ecowitt gateway or the Ecowitt cloud API. The live stream stays clean.
-- **Ecowitt account integration.** Log in with your Ecowitt account and register the camera from the web UI; uploads then show up under your account like the stock camera did.
+- **Scheduled uploads** to Ecowitt.net or to any HTTP/HTTPS endpoint you choose (5 / 10 / 15 / 20 / 25 min intervals; custom URLs can also upload every 1 min).
+- **Weather overlay** on stills. Burns timestamp, wind, temperature, rain, and a compass rose (now a lighter 256 px image that needs less memory) into the JPEG from either a local Ecowitt gateway or the Ecowitt cloud API. The live stream stays clean.
+- **Ecowitt account integration.** Log in with your Ecowitt account and register the camera from the web UI; uploads then show up under your account like the stock camera did. The page also lists the other devices on the account.
+- **Manual exposure and gain, with automatic night/day switching.** Set exposure, gain and frame timing by hand for night shots, and let the camera switch between the day and night settings by itself when the scene gets dark or bright. It is off until you turn it on, and it refuses settings that would make a frame take too long.
 - **One interface style.** A single stylesheet shared with the CAMERA_KERRY project.
 - **Time-zone-aware clock** with real sunrise / sunset from the saved location.
 - **Watchdog with reboot cap.** If the camera or uploads fail repeatedly it reboots itself, but stops after N reboots in an M-minute window so it doesn't boot-loop forever.
 - **OTA updates from the browser.** Either check a version-info URL (default: this repository's `ota.json`) or flash a `.bin` directly from your PC.
 - **mDNS** at `http://camera.local` (hostname configurable).
-- **WebSocket log stream** for debugging.
+- **WebSocket log stream** for debugging, at `ws://<camera>:82/ws/log`. Passwords and URL query strings are stripped from it.
+- **Built for tight memory.** The ESP32 has very little internal RAM, so Wi-Fi buffers live in PSRAM, long waits on the camera have time limits, and the OTA reboot still happens if a task can't be created.
 
 ## What it barely does
 

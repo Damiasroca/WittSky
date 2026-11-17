@@ -47,6 +47,56 @@ static int  s_checked; /* 1 after this boot's live device-list check */
 static int  s_seen;    /* 1 when that list contained this camera's MAC */
 static int  s_wait;
 
+/* The last device list from the account, kept as JSON text in PSRAM so the
+ * status reply can show it without another round trip to Ecowitt. */
+#define ECO_DEV_CACHE_MAX 6144
+static char *s_dev_cache;
+static StaticSemaphore_t s_dev_mu_buf;
+static SemaphoreHandle_t s_dev_mu;
+
+static void dev_cache_lock(void)
+{
+    if (!s_dev_mu)
+        s_dev_mu = xSemaphoreCreateMutexStatic(&s_dev_mu_buf);
+    xSemaphoreTake(s_dev_mu, portMAX_DELAY);
+}
+
+static void dev_cache_set(cJSON *arr)
+{
+    char *txt = arr ? cJSON_PrintUnformatted(arr) : NULL;
+    dev_cache_lock();
+    if (!s_dev_cache)
+        s_dev_cache = psram_malloc(ECO_DEV_CACHE_MAX);
+    if (s_dev_cache) {
+        if (txt && strlen(txt) < ECO_DEV_CACHE_MAX)
+            strcpy(s_dev_cache, txt);
+        else
+            s_dev_cache[0] = 0;
+    }
+    xSemaphoreGive(s_dev_mu);
+    free(txt);
+}
+
+static void dev_cache_clear(void)
+{
+    dev_cache_lock();
+    if (s_dev_cache)
+        s_dev_cache[0] = 0;
+    xSemaphoreGive(s_dev_mu);
+}
+
+/* Adds the cached list to a status reply as "devices". */
+static void dev_cache_attach(cJSON *o)
+{
+    cJSON *arr = NULL;
+    dev_cache_lock();
+    if (s_dev_cache && s_dev_cache[0])
+        arr = cJSON_Parse(s_dev_cache);
+    xSemaphoreGive(s_dev_mu);
+    if (arr)
+        cJSON_AddItemToObject(o, "devices", arr);
+}
+
 typedef struct {
     char name[24];
     char value[128];
@@ -414,6 +464,7 @@ static void fill_status(cJSON *o)
     cJSON_AddStringToObject(o, "check_error", s_check_err);
     cJSON_AddStringToObject(o, "mac", mac);
     cJSON_AddStringToObject(o, "suggest_name", g_mdns_host[0] ? g_mdns_host : "HP10");
+    dev_cache_attach(o);
 }
 
 static void put_str(cJSON *o, const char *k, const char *v)
@@ -533,6 +584,7 @@ static void attach_devices(cJSON *dst, cJSON *list)
 {
     char mine[18];
     our_mac(mine, sizeof mine);
+    cJSON_DeleteItemFromObject(dst, "devices"); /* a cached list from fill_status */
     cJSON *arr = cJSON_AddArrayToObject(dst, "devices");
     cJSON *data = cJSON_GetObjectItem(list, "data");
     cJSON *rows = data ? cJSON_GetObjectItem(data, "rows") : NULL;
@@ -578,6 +630,7 @@ static void attach_devices(cJSON *dst, cJSON *list)
     if (!found)
         s_devid[0] = 0;
     s_seen = found ? 1 : 0;
+    dev_cache_set(arr);
 }
 
 static bool fetch_devices(cJSON *dst, char *err, size_t err_n)
@@ -663,6 +716,7 @@ static cJSON *job_login(void)
     if (s_acct[0] && strcmp(s_acct, acct) != 0) {
         s_devid[0] = 0;
         s_seen = 0;
+        dev_cache_clear();
     }
     strlcpy(s_acct, acct, sizeof s_acct);
     strlcpy(s_pwd, pwd, sizeof s_pwd);
@@ -786,6 +840,7 @@ static void clear_session(void)
     s_seen = 0;
     s_check_err[0] = 0;
     memset(s_cks, 0, sizeof s_cks);
+    dev_cache_clear();
 }
 
 static cJSON *job_logout(void)

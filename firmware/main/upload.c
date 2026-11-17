@@ -130,11 +130,12 @@ static esp_err_t upload_now(void)
 
 static bool upload_armed(uint8_t slot)
 {
-    uint32_t mins = (uint32_t)slot * 5;
-    if (mins == 0)
+    if (hp10_ost_minutes(slot) == 0)
         return false;
     if (g_ost_interval != slot)
         return false;
+    if (slot == HP10_OST_1MIN)
+        return want_custom();
     return want_custom() || want_ecowitt();
 }
 
@@ -150,6 +151,8 @@ static const char *idle_why(void)
         return "custom URL invalid";
     if (!want_custom() && !want_ecowitt())
         return "not armed";
+    if (g_ost_interval == HP10_OST_1MIN && !want_custom())
+        return "1 min is custom URL only";
     if (!g_bCameraOk)
         return "camera down";
     if (!hp10_sta_has_ip())
@@ -222,7 +225,7 @@ static void upload_task(void *arg)
             continue;
         }
 
-        uint32_t mins = (uint32_t)slot * 5;
+        uint32_t mins = hp10_ost_minutes(slot);
         if (first) {
             first = false;
             ESP_LOGI(TAG, "armed dest=%s — first shot in 5s, then every %u min",
